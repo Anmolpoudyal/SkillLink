@@ -1,6 +1,6 @@
-import { Card } from "@/components/ui/card";
-import { Wrench, Zap, Hammer, PaintBucket, Droplets, Laptop, Tv, Shield } from "lucide-react";
 
+import { Wrench, Zap, Hammer, PaintBucket, Droplets, Laptop, Tv, Shield } from "lucide-react";
+import { Card } from "./ui/Card.jsx";
 const categories = [
   {
     icon: Wrench,

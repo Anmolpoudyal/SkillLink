@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import './App.css'
-import Starter from './components/Starter.jsx'
+
+import HomePage from './pages/home.jsx'
 function App() {
   const [count, setCount] = useState(0)
 
   return (
     <>
-      <Starter />
-      
+      <HomePage />
     </>
   )
 }
