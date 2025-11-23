@@ -13,8 +13,7 @@ import { FaUserTie, FaTools } from "react-icons/fa";
 
 export default function LandingPage() {
   return (
-    // Main Container
-    <div className=" bg-gr">
+   
     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-8">
       {/* Header Section */}
       <h1 className="text-4xl font-bold text-center mb-2">Welcome to Skill Link</h1>
@@ -54,7 +53,6 @@ export default function LandingPage() {
           </ul>
         </div>
       </div>
-    </div>
     </div>
   );
 }
