@@ -1,5 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import heroImage from "../assets/landingpageBG.png";
+import { Button } from "./ui/Button.jsx";
 
 function Starter() {
   return (
@@ -48,6 +49,7 @@ function Starter() {
                 Become a Provider
               </Button>
             </div>
+            
 
             <div className="flex items-center gap-8 pt-4">
               <div>
