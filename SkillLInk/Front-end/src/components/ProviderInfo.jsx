@@ -91,13 +91,13 @@ const ProviderInfo = () => {
               </div>
             </div>
             
-            {/* <Button 
+            {<Button 
               size="lg"
               variant="hero"
               className="text-lg h-14 px-8 bg-gradient-to-r from-primary to-accent"
             >
               Join as Provider
-            </Button> */}
+            </Button> }
           </div>
         </div>
       </div>

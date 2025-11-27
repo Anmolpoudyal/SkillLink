@@ -29,25 +29,25 @@ function Starter() {
               transparent pricing, trusted reviews.
             </p>
 
-            {/* <div className="flex flex-col sm:flex-row gap-4">
-                            <Button
-                                size="lg"
-                                variant="hero"
-                                className="text-lg h-14 px-8"
-                                onClick={() => window.location.href = '/browse'}
-                            >
-                                Find Services
-                                <ArrowRight className="ml-2 h-5 w-5" />
-                            </Button>
-                            <Button
-                                size="lg"
-                                variant="outline"
-                                className="text-lg h-14 px-8"
-                                onClick={() => window.location.href = '/auth'}
-                            >
-                                Become a Provider
-                            </Button>
-                        </div> */}
+             <div className="flex flex-col sm:flex-row gap-4">
+              <Button 
+                size="lg" 
+                variant="hero"
+                className="text-lg h-14 px-8"
+                onClick={() => window.location.href = '/browse'}
+              >
+                Find Services
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+              <Button 
+                size="lg" 
+                variant="outline"
+                className="text-lg h-14 px-8"
+                onClick={() => window.location.href = '/auth'}
+              >
+                Become a Provider
+              </Button>
+            </div>
 
             <div className="flex items-center gap-8 pt-4">
               <div>
