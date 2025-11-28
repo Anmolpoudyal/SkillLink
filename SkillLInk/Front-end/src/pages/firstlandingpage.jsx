@@ -24,7 +24,7 @@ export default function LandingPage() {
         {/* Customer Card */}
         <div className="cursor-pointer bg-white rounded-2xl shadow-xl p-6 hover:shadow-2xl transition transform hover:-translate-y-1">
           <div className="flex justify-center mb-4">
-            <FaUserTie size={60} />
+            <FaUserTie size={60} onclick={() => window.location.href = "/login"}/>
           </div>
           <h2 className="text-2xl font-bold text-center">I'm Customer</h2>
           <p className="text-center mt-2 mb-4 text-gray-600">Choose how you want to continue</p>

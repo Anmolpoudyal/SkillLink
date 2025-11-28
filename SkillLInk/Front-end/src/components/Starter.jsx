@@ -1,6 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import heroImage from "../assets/landingpageBG.png";
-import { Button } from "./ui/Button.jsx";
+import { Button } from "./ui/button.jsx";
 
 function Starter() {
   return (

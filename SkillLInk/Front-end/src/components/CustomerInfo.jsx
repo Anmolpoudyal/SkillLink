@@ -1,6 +1,6 @@
 
 import { CheckCircle2 } from "lucide-react";
-
+import { Button } from "./ui/button.jsx";
 const benefits = [
   "Find verified service providers near you instantly",
   "Compare ratings, reviews, and pricing transparently",
@@ -43,13 +43,13 @@ const CustomerInfo = () => {
               ))}
             </ul>
             
-            {/* <Button 
+            <Button 
               size="lg"
-              variant="accent"
+              variant="hero"
               className="text-lg h-14 px-8"
             >
               Get Started Now
-            </Button> */}
+            </Button> 
           </div>
           
           <div className="relative">
