@@ -1,14 +1,20 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card    ";
+//import { Link, useNavigate } from "react-router-dom";
+import { Button } from "../components/ui/button.jsx";
+import { Input } from "../components/ui/input.jsx";
+import { Label } from "../components/ui/label.jsx";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/Card.jsx";
 import { Wrench } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "../hooks/useToast.js";
 
 const CustomerSignup = () => {
-  const navigate = useNavigate();
+  //const navigate = useNavigate();
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     fullName: "",
@@ -18,13 +24,13 @@ const CustomerSignup = () => {
     confirmPassword: "",
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     if (formData.password !== formData.confirmPassword) {
       toast({
         title: "Error",
@@ -34,7 +40,7 @@ const CustomerSignup = () => {
       return;
     }
 
-    // Demo signup - in production this would save to backend
+    // Temporary demo signup
     localStorage.setItem("userRole", "customer");
     localStorage.setItem("isLoggedIn", "true");
     localStorage.setItem("userEmail", formData.email);
@@ -45,7 +51,7 @@ const CustomerSignup = () => {
       description: "Welcome to ServiceHub!",
     });
 
-    navigate("/customer");
+   // navigate("/customer");
   };
 
   return (
@@ -54,11 +60,12 @@ const CustomerSignup = () => {
         <CardHeader className="space-y-1 flex flex-col items-center">
           <div className="flex items-center gap-2 mb-2">
             <Wrench className="h-6 w-6 text-primary" />
-            <span className="text-2xl font-bold">ServiceHub</span>
+            <span className="text-2xl font-bold">SkillLink</span>
           </div>
           <CardTitle className="text-2xl">Create Customer Account</CardTitle>
           <CardDescription>Join ServiceHub to book services</CardDescription>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -72,6 +79,7 @@ const CustomerSignup = () => {
                 required
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -84,6 +92,7 @@ const CustomerSignup = () => {
                 required
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
               <Input
@@ -96,6 +105,7 @@ const CustomerSignup = () => {
                 required
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -108,6 +118,7 @@ const CustomerSignup = () => {
                 required
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
               <Input
@@ -120,6 +131,7 @@ const CustomerSignup = () => {
                 required
               />
             </div>
+
             <Button type="submit" className="w-full">
               Create Account
             </Button>
@@ -127,15 +139,15 @@ const CustomerSignup = () => {
 
           <div className="mt-4 text-center text-sm">
             <span className="text-muted-foreground">Already have an account? </span>
-            <Link to="/login" className="text-primary hover:underline">
+            {/* <Link to="/login" className="text-primary hover:underline">
               Login
-            </Link>
+            </Link> */}
           </div>
-          
+
           <div className="mt-2 text-center">
-            <Link to="/" className="text-sm text-muted-foreground hover:text-primary">
+            {/* <Link to="/" className="text-sm text-muted-foreground hover:text-primary">
               Back to Home
-            </Link>
+            </Link> */}
           </div>
         </CardContent>
       </Card>
