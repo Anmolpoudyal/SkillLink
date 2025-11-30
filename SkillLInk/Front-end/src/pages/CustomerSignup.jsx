@@ -1,5 +1,5 @@
 import { useState } from "react";
-//import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button.jsx";
 import { Input } from "../components/ui/input.jsx";
 import { Label } from "../components/ui/label.jsx";
@@ -14,7 +14,7 @@ import { Wrench } from "lucide-react";
 import { useToast } from "../hooks/useToast.js";
 
 const CustomerSignup = () => {
-  //const navigate = useNavigate();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     fullName: "",
@@ -139,15 +139,15 @@ const CustomerSignup = () => {
 
           <div className="mt-4 text-center text-sm">
             <span className="text-muted-foreground">Already have an account? </span>
-            {/* <Link to="/login" className="text-primary hover:underline">
+            <Link to="/login" className="text-primary hover:underline">
               Login
-            </Link> */}
+            </Link>
           </div>
 
           <div className="mt-2 text-center">
-            {/* <Link to="/" className="text-sm text-muted-foreground hover:text-primary">
+            <Link to="/" className="text-sm text-muted-foreground hover:text-primary">
               Back to Home
-            </Link> */}
+            </Link>
           </div>
         </CardContent>
       </Card>

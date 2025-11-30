@@ -1,8 +1,9 @@
 import { ArrowRight } from "lucide-react";
 import heroImage from "../assets/landingpageBG.png";
 import { Button } from "./ui/button.jsx";
-
+import { Link, useNavigate } from "react-router-dom";
 function Starter() {
+  const navigate = useNavigate();
   return (
     <section className="relative min-h-[90vh] flex items-center overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-secondary/20" />
@@ -35,7 +36,7 @@ function Starter() {
                 size="lg" 
                 variant="hero"
                 className="text-lg h-14 px-8"
-                onClick={() => window.location.href = '/browse'}
+                onClick={() => navigate('/Login')}
               >
                 Find Services
                 <ArrowRight className="ml-2 h-5 w-5" />
@@ -44,7 +45,7 @@ function Starter() {
                 size="lg" 
                 variant="outline"
                 className="text-lg h-14 px-8"
-                onClick={() => window.location.href = '/auth'}
+                onClick={() => navigate('/provider-signup')}
               >
                 Become a Provider
               </Button>

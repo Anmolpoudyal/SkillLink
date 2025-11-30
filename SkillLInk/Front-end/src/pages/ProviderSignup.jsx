@@ -1,5 +1,5 @@
 import { useState } from "react";
-//import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button.jsx";
 import { Input } from "../components/ui/input.jsx";
 import { Label } from "../components/ui/label.jsx";
@@ -44,7 +44,7 @@ const locations = [
 ];
 
 const ProviderSignup = () => {
-  //const navigate = useNavigate();
+  const navigate = useNavigate();
   const { toast } = useToast();
   
   const [formData, setFormData] = useState({
@@ -126,7 +126,7 @@ const ProviderSignup = () => {
         <CardHeader className="space-y-1 flex flex-col items-center">
           <div className="flex items-center gap-2 mb-2">
             <Wrench className="h-6 w-6 text-primary" />
-            <span className="text-2xl font-bold">ServiceHub</span>
+            <span className="text-2xl font-bold">SkillLink</span>
           </div>
           <CardTitle className="text-2xl">Apply as Service Provider</CardTitle>
           <CardDescription>
@@ -345,15 +345,15 @@ const ProviderSignup = () => {
             <span className="text-muted-foreground">
               Already have an account?{" "}
             </span>
-            {/* <Link to="/login" className="text-primary hover:underline">
+            <Link to="/login" className="text-primary hover:underline">
               Login
-            </Link> */}
+            </Link>
           </div>
 
           <div className="mt-2 text-center">
-            {/* <Link to="/" className="text-sm text-muted-foreground hover:text-primary">
+            <Link to="/" className="text-sm text-muted-foreground hover:text-primary">
               Back to Home
-            </Link> */}
+            </Link>
           </div>
         </CardContent>
       </Card>

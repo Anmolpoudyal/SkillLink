@@ -5,10 +5,11 @@ import HowItWorks from "../components/howItWorks.jsx";
 import CustomerInfo from "../components/CustomerInfo.jsx";
 import ProviderInfo from "../components/ProviderInfo.jsx";
 import Footer from "../components/ui/footer.jsx";
-
+import HomeNav from "../components/homeNav.jsx";
 function HomePage() {
   return (
     <>
+    <HomeNav />
     <Starter />
     <ServiceCategories />
     <HowItWorks />
