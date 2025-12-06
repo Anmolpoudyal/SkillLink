@@ -13,6 +13,7 @@ import {
 import { Wrench } from "lucide-react";
 import { useToast } from "../hooks/useToast.js";
 
+
 const CustomerSignup = () => {
   const navigate = useNavigate();
   const { toast } = useToast();

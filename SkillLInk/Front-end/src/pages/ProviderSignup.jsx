@@ -43,6 +43,10 @@ const locations = [
   "Butwal",
 ];
 
+
+
+
+
 const ProviderSignup = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -119,6 +123,8 @@ const ProviderSignup = () => {
       navigate("/login");
     }, 2000);
   };
+
+    
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10 p-4 py-8">
