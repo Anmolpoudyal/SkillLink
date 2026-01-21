@@ -12,11 +12,13 @@ import {
 } from "../components/ui/Card.jsx";
 import { Wrench } from "lucide-react";
 import { useToast } from "../hooks/useToast.js";
+import api from "../services/api.js";
 
 
 const CustomerSignup = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -29,7 +31,7 @@ const CustomerSignup = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (formData.password !== formData.confirmPassword) {
@@ -41,18 +43,38 @@ const CustomerSignup = () => {
       return;
     }
 
-    // Temporary demo signup
-    localStorage.setItem("userRole", "customer");
-    localStorage.setItem("isLoggedIn", "true");
-    localStorage.setItem("userEmail", formData.email);
-    localStorage.setItem("userName", formData.fullName);
+    setLoading(true);
 
-    toast({
-      title: "Account Created",
-      description: "Welcome to ServiceHub!",
-    });
+    try {
+      const response = await api.customerSignup({
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+      });
 
-   // navigate("/customer");
+      // Store user info
+      localStorage.setItem("userRole", "customer");
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("userEmail", response.user.email);
+      localStorage.setItem("userName", response.user.full_name);
+
+      toast({
+        title: "Account Created",
+        description: "Welcome to SkillLink!",
+      });
+
+      // Navigate to customer dashboard or home
+      navigate("/");
+    } catch (error) {
+      toast({
+        title: "Registration Failed",
+        description: error.message || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -133,8 +155,8 @@ const CustomerSignup = () => {
               />
             </div>
 
-            <Button type="submit" className="w-full">
-              Create Account
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Creating Account..." : "Create Account"}
             </Button>
           </form>
 

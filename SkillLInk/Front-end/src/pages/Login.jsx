@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Wrench } from "lucide-react";
 import { useToast } from "../hooks/useToast.js";
+import api from "../services/api.js";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -14,30 +15,52 @@ const Login = () => {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
+  const [loading, setLoading] = useState(false);
   
   const [role, setRole] = useState("customer");
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
 
-    // Demo login
-    localStorage.setItem("userRole", role);
-    localStorage.setItem("isLoggedIn", "true");
-    localStorage.setItem("userEmail", email);
+    setLoading(true);
 
-    toast({
-      title: "Login Successful",
-      description: `Welcome back! Logged in as ${role}`,
-    });
+    try {
+      // Map frontend role to database role
+      const dbRole = role === 'provider' ? 'service_provider' : role;
+      
+      const response = await api.login({
+        email,
+        password,
+        role: dbRole,
+      });
 
-    // Navigation based on role
-    if (role === "admin") {
-      navigate("/admin");
-    } else if (role === "provider") {
-      navigate("/provider");
-    } else {
-      navigate("/customer");
+      // Store user info
+      localStorage.setItem("userRole", response.user.role);
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("userEmail", response.user.email);
+      localStorage.setItem("userName", response.user.full_name);
+
+      toast({
+        title: "Login Successful",
+        description: `Welcome back, ${response.user.full_name}!`,
+      });
+
+      // Navigation based on role
+      if (response.user.role === "admin") {
+        navigate("/admin");
+      } else if (response.user.role === "service_provider") {
+        navigate("/provider");
+      } else {
+        navigate("/customer");
+      }
+    } catch (error) {
+      toast({
+        title: "Login Failed",
+        description: error.message || "Invalid email or password",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -47,7 +70,7 @@ const Login = () => {
         <CardHeader className="space-y-1 flex flex-col items-center">
           <div className="flex items-center gap-2 mb-2">
             <Wrench className="h-6 w-6 text-primary" />
-            <span className="text-2xl font-bold">ServiceHub</span>
+            <span className="text-2xl font-bold">SkillLink</span>
           </div>
           <CardTitle className="text-2xl">Welcome Back</CardTitle>
           <CardDescription>Login to your account</CardDescription>
@@ -87,8 +110,8 @@ const Login = () => {
               />
             </div>
 
-            <Button type="submit" className="w-full">
-              Login
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Logging in..." : "Login"}
             </Button>
           </form>
 

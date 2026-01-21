@@ -6,7 +6,7 @@ CREATE TABLE users (
   email VARCHAR(255) NOT NULL UNIQUE,
   phone VARCHAR(20) UNIQUE,
   password_hash TEXT NOT NULL,
-  role user_role NOT NULL,
+  role user_role NOT NULL DEFAULT 'customer',
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );

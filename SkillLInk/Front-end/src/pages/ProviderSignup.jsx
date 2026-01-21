@@ -20,6 +20,7 @@ import {
 } from "../components/ui/select.jsx";
 import { Wrench, Upload } from "lucide-react";
 import { useToast } from "../hooks/useToast.js";
+import api from "../services/api.js";
 
 const serviceCategories = [
   "Electrician",
@@ -50,6 +51,7 @@ const locations = [
 const ProviderSignup = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
   
   const [formData, setFormData] = useState({
     fullName: "",
@@ -84,7 +86,7 @@ const ProviderSignup = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (formData.password !== formData.confirmPassword) {
@@ -114,14 +116,57 @@ const ProviderSignup = () => {
       return;
     }
 
-    toast({
-      title: "Application Submitted",
-      description: "Your application is pending admin approval.",
-    });
+    setLoading(true);
 
-    setTimeout(() => {
-      navigate("/login");
-    }, 2000);
+    try {
+      // Convert file to base64
+      const fileToBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.onerror = (error) => reject(error);
+        });
+      };
+
+      const certificateBase64 = await fileToBase64(formData.ctevtCertificate);
+
+      const response = await api.providerSignup({
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        serviceCategory: formData.serviceCategory,
+        locations: formData.locations,
+        hourlyRate: parseFloat(formData.hourlyRate),
+        experience: parseInt(formData.experience),
+        bio: formData.bio,
+        certificate: certificateBase64,
+      });
+
+      toast({
+        title: "Application Submitted",
+        description: "Your provider account has been created successfully!",
+      });
+
+      // Store user info
+      localStorage.setItem("userRole", "service_provider");
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("userEmail", response.user.email);
+      localStorage.setItem("userName", response.user.full_name);
+
+      setTimeout(() => {
+        navigate("/");
+      }, 1500);
+    } catch (error) {
+      toast({
+        title: "Registration Failed",
+        description: error.message || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
     
@@ -342,8 +387,8 @@ const ProviderSignup = () => {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" size="lg">
-              Submit Application
+            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+              {loading ? "Submitting Application..." : "Submit Application"}
             </Button>
           </form>
 

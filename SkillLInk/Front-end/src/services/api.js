@@ -1,0 +1,80 @@
+// API base URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+// Helper function to handle API responses
+const handleResponse = async (response) => {
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.message || 'Something went wrong');
+  }
+  
+  return data;
+};
+
+// API service object
+const api = {
+  // Customer Signup
+  customerSignup: async (userData) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/CustomerSignup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // Important for cookies
+      body: JSON.stringify(userData),
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Provider Signup
+  providerSignup: async (providerData) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/ProviderSignup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(providerData),
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Login
+  login: async (credentials) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(credentials),
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Get current user
+  getCurrentUser: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Logout
+  logout: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+};
+
+export default api;
