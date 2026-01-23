@@ -3,6 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import authRoutes from './Routes/auth.js';
+import adminRoutes from './Routes/admin.js';
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ app.use(cookieParser());
 
 // Import Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 
 const PORT = process.env.PORT || 5000;
 

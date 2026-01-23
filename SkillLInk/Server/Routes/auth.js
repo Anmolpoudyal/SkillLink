@@ -26,10 +26,16 @@ Router.post('/CustomerSignup', async (req, res) => {
             return res.status(400).json({message: 'All fields are required'});
         }
 
-        const userExists = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+        const emailExists = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
 
-        if(userExists.rows.length > 0) {
-            return res.status(409).json({message: 'User already exists'});
+        if(emailExists.rows.length > 0) {
+            return res.status(409).json({message: 'Email already exists'});
+        }
+
+        const phoneExists = await pool.query('SELECT * FROM users WHERE phone = $1', [phone]);
+
+        if(phoneExists.rows.length > 0) {
+            return res.status(409).json({message: 'Phone number already exists'});
         }
 
         const hashedPassword = await bycrypt.hash(password, 10);
@@ -66,10 +72,16 @@ Router.post('/ProviderSignup', async (req, res) => {
             return res.status(400).json({message: 'All required fields must be filled'});
         }
 
-        const userExists = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+        const emailExists = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
 
-        if(userExists.rows.length > 0) {
-            return res.status(409).json({message: 'User already exists'});
+        if(emailExists.rows.length > 0) {
+            return res.status(409).json({message: 'Email already exists'});
+        }
+
+        const phoneExists = await pool.query('SELECT * FROM users WHERE phone = $1', [phone]);
+
+        if(phoneExists.rows.length > 0) {
+            return res.status(409).json({message: 'Phone number already exists'});
         }
 
         const hashedPassword = await bycrypt.hash(password, 10);
@@ -141,6 +153,11 @@ Router.post('/login', async (req, res) => {
         }
 
         const userData = user.rows[0];
+
+        // Check if user account is suspended
+        if (userData.is_active === false) {
+            return res.status(403).json({message: 'Account suspended. Please contact support.'});
+        }
 
         // Verify role if provided
         if(role && userData.role !== role) {

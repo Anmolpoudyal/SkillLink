@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import LandingPage from "./pages/firstlandingpage.jsx";
 import CustomerSignup from "./pages/CustomerSignup.jsx";
 import Login from "./pages/Login.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import { Toaster } from "./components/ui/toaster.jsx";
 
 function App() {
   const [count, setCount] = useState(0);
@@ -18,7 +20,9 @@ function App() {
         <Route path="/provider-signup" element={<ProviderSignup />} />
         <Route path="/" element={<HomePage />} />
         <Route path="/Login" element={<Login />} />
+        <Route path="/admin" element={<AdminDashboard />} />
       </Routes>
+      <Toaster />
     </BrowserRouter>
   );
 }

@@ -75,6 +75,64 @@ const api = {
     
     return handleResponse(response);
   },
+
+  // Admin API calls
+  admin: {
+    // Get all users
+    getUsers: async (filters = {}) => {
+      const params = new URLSearchParams(filters);
+      const response = await fetch(`${API_BASE_URL}/api/admin/users?${params}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      return handleResponse(response);
+    },
+
+    // Get specific user details
+    getUserDetails: async (userId) => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      return handleResponse(response);
+    },
+
+    // Get provider certificate
+    getProviderCertificate: async (providerId) => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/providers/${providerId}/certificate`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      return handleResponse(response);
+    },
+
+    // Suspend or activate user
+    updateUserStatus: async (userId, isActive) => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ is_active: isActive }),
+      });
+      
+      return handleResponse(response);
+    },
+
+    // Get statistics
+    getStats: async () => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      return handleResponse(response);
+    },
+  },
 };
 
 export default api;
