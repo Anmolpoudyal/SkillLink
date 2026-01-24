@@ -7,6 +7,7 @@ CREATE TABLE users (
   phone VARCHAR(20) UNIQUE,
   password_hash TEXT NOT NULL,
   role user_role NOT NULL DEFAULT 'customer',
+  is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
