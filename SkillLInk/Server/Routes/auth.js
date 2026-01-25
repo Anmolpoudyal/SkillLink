@@ -193,6 +193,131 @@ Router.post('/login', async (req, res) => {
         res.json(req.user);
     });
 
+    // Get full profile (for customers and providers)
+    Router.get('/profile', protect, async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const userRole = req.user.role;
+
+            // Get base user data
+            const userResult = await pool.query(
+                'SELECT id, full_name, email, phone, address, profile_photo, role, created_at FROM users WHERE id = $1',
+                [userId]
+            );
+
+            if (userResult.rows.length === 0) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            let userData = userResult.rows[0];
+
+            // If service provider, get additional provider data
+            if (userRole === 'service_provider') {
+                const providerResult = await pool.query(
+                    `SELECT sp.*, sc.name as service_name 
+                     FROM service_providers sp 
+                     LEFT JOIN service_categories sc ON sp.service_category_id = sc.id 
+                     WHERE sp.id = $1`,
+                    [userId]
+                );
+
+                if (providerResult.rows.length > 0) {
+                    userData = { ...userData, ...providerResult.rows[0] };
+                }
+
+                // Get provider locations
+                const locationsResult = await pool.query(
+                    'SELECT location FROM service_provider_locations WHERE provider_id = $1',
+                    [userId]
+                );
+                userData.locations = locationsResult.rows.map(row => row.location);
+            }
+
+            res.json({ user: userData });
+        } catch (error) {
+            console.error('Get profile error:', error);
+            res.status(500).json({ message: 'Server error getting profile' });
+        }
+    });
+
+    // Update profile
+    Router.put('/profile', protect, async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const userRole = req.user.role;
+            const { fullName, email, phone, address, bio, hourlyRate, experience, location } = req.body;
+
+            // Update base user data
+            const updateUserResult = await pool.query(
+                `UPDATE users 
+                 SET full_name = COALESCE($1, full_name), 
+                     email = COALESCE($2, email), 
+                     phone = COALESCE($3, phone),
+                     address = COALESCE($4, address),
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $5 
+                 RETURNING id, full_name, email, phone, address, role`,
+                [fullName, email, phone, address, userId]
+            );
+
+            if (updateUserResult.rows.length === 0) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            let userData = updateUserResult.rows[0];
+
+            // If service provider, update additional provider data
+            if (userRole === 'service_provider') {
+                await pool.query(
+                    `UPDATE service_providers 
+                     SET bio = COALESCE($1, bio),
+                         hourly_rate = COALESCE($2, hourly_rate),
+                         years_of_experience = COALESCE($3, years_of_experience)
+                     WHERE id = $4`,
+                    [bio, hourlyRate, experience, userId]
+                );
+
+                // Update location if provided
+                if (location) {
+                    // Delete existing locations and add new one
+                    await pool.query('DELETE FROM service_provider_locations WHERE provider_id = $1', [userId]);
+                    await pool.query(
+                        'INSERT INTO service_provider_locations (provider_id, location) VALUES ($1, $2)',
+                        [userId, location]
+                    );
+                }
+
+                // Get updated provider data
+                const providerResult = await pool.query(
+                    `SELECT sp.*, sc.name as service_name 
+                     FROM service_providers sp 
+                     LEFT JOIN service_categories sc ON sp.service_category_id = sc.id 
+                     WHERE sp.id = $1`,
+                    [userId]
+                );
+
+                if (providerResult.rows.length > 0) {
+                    userData = { ...userData, ...providerResult.rows[0] };
+                }
+
+                const locationsResult = await pool.query(
+                    'SELECT location FROM service_provider_locations WHERE provider_id = $1',
+                    [userId]
+                );
+                userData.locations = locationsResult.rows.map(row => row.location);
+            }
+
+            // Update localStorage values if name or email changed
+            res.json({ 
+                message: 'Profile updated successfully', 
+                user: userData 
+            });
+        } catch (error) {
+            console.error('Update profile error:', error);
+            res.status(500).json({ message: 'Server error updating profile' });
+        }
+    });
+
 
     //logout
     Router.post('/logout', (req, res) => {

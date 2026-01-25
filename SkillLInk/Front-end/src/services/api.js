@@ -76,6 +76,30 @@ const api = {
     return handleResponse(response);
   },
 
+  // Get user profile
+  getProfile: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Update user profile
+  updateProfile: async (profileData) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(profileData),
+    });
+    
+    return handleResponse(response);
+  },
+
   // Admin API calls
   admin: {
     // Get all users

@@ -1,7 +1,10 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "../components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import { Button } from "../components/ui/button";
+import { useToast } from "../hooks/useToast.js";
+import api from "../services/api.js";
 import {
   Clock,
   PlayCircle,
@@ -113,10 +116,41 @@ const ProviderDashboard = () => {
     "Biratnagar",
   ];
 
-  const handleSaveProfile = () => {
-    console.log("Saving profile:", profileForm);
-    // TODO: Implement API call to save profile
-    setShowEditProfileModal(false);
+  const handleSaveProfile = async () => {
+    try {
+      const response = await api.updateProfile({
+        fullName: profileForm.fullName,
+        email: profileForm.email,
+        phone: profileForm.phone,
+        bio: profileForm.bio,
+        experience: parseInt(profileForm.experience) || 0,
+        location: profileForm.location,
+      });
+
+      // Update local state
+      setProvider({
+        name: response.user.full_name,
+        initial: response.user.full_name.charAt(0).toUpperCase(),
+      });
+
+      // Update localStorage
+      localStorage.setItem("userName", response.user.full_name);
+      localStorage.setItem("userEmail", response.user.email);
+
+      toast({
+        title: "Success",
+        description: "Profile updated successfully!",
+      });
+
+      setShowEditProfileModal(false);
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update profile",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleOpenBlockModal = (date = null) => {
@@ -149,10 +183,75 @@ const ProviderDashboard = () => {
     handleCloseBlockModal();
   };
 
-  // Provider info
-  const provider = {
-    name: "Ram Sharma",
-    initial: "R",
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  // Loading state
+  const [loading, setLoading] = useState(true);
+
+  // Provider info - will be populated from API
+  const [provider, setProvider] = useState({
+    name: localStorage.getItem("userName") || "Provider",
+    initial: (localStorage.getItem("userName") || "P").charAt(0).toUpperCase(),
+  });
+
+  // Fetch profile on mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await api.getProfile();
+        const user = response.user;
+        
+        setProvider({
+          name: user.full_name,
+          initial: user.full_name.charAt(0).toUpperCase(),
+        });
+
+        setProfileForm({
+          fullName: user.full_name || "",
+          email: user.email || "",
+          phone: user.phone || "",
+          service: user.service_name || "Electrician",
+          location: user.locations?.[0] || "Kathmandu",
+          bio: user.bio || "",
+          experience: user.years_of_experience?.toString() || "0",
+        });
+
+        setSettingsForm(prev => ({
+          ...prev,
+          hourlyRate: user.hourly_rate || 600,
+        }));
+
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load profile. Please login again.",
+          variant: "destructive",
+        });
+        // Redirect to login if not authenticated
+        if (error.message.includes("Not authorized")) {
+          navigate("/Login");
+        }
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [navigate, toast]);
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+      localStorage.clear();
+      navigate("/Login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      localStorage.clear();
+      navigate("/Login");
+    }
   };
 
   // Stats data
@@ -443,7 +542,7 @@ const ProviderDashboard = () => {
               </div>
               <span className="text-gray-700">{provider.name}</span>
             </div>
-            <button className="text-gray-500 hover:text-gray-700">
+            <button onClick={handleLogout} className="text-gray-500 hover:text-gray-700">
               <LogOut className="w-5 h-5" />
             </button>
           </div>

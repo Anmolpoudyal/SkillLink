@@ -1,6 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "../components/ui/Card";
 import { Button } from "../components/ui/button";
+import { useToast } from "../hooks/useToast.js";
+import api from "../services/api.js";
 import {
   Search,
   MapPin,
@@ -207,25 +210,120 @@ const CustomerDashboard = () => {
     setShowSlotsModal(false);
   };
 
-  // Customer info
-  const customer = {
-    name: "Customer",
-    initial: "C",
-  };
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
-  // Edit Profile modal state
-  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
-  const [customerProfileForm, setCustomerProfileForm] = useState({
-    fullName: "Customer Name",
-    email: "customer@email.com",
-    phone: "+977 9812345678",
-    address: "Kathmandu, Nepal",
+  // Loading state
+  const [loading, setLoading] = useState(true);
+
+  // Customer info - will be populated from API
+  const [customer, setCustomer] = useState({
+    name: localStorage.getItem("userName") || "Customer",
+    initial: (localStorage.getItem("userName") || "C").charAt(0).toUpperCase(),
   });
 
-  const handleSaveCustomerProfile = () => {
-    console.log("Saving customer profile:", customerProfileForm);
-    // TODO: Implement API call to save profile
-    setShowEditProfileModal(false);
+  // Edit Profile modal state - declare before useEffect
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [customerProfileForm, setCustomerProfileForm] = useState({
+    fullName: localStorage.getItem("userName") || "",
+    email: localStorage.getItem("userEmail") || "",
+    phone: "",
+    address: "",
+  });
+
+  // Fetch profile on mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await api.getProfile();
+        const user = response.user;
+        
+        setCustomer({
+          name: user.full_name,
+          initial: user.full_name.charAt(0).toUpperCase(),
+        });
+
+        setCustomerProfileForm({
+          fullName: user.full_name || "",
+          email: user.email || "",
+          phone: user.phone || "",
+          address: user.address || "",
+        });
+
+        // Pre-fill booking form with customer info
+        setBookingForm(prev => ({
+          ...prev,
+          fullName: user.full_name || "",
+          email: user.email || "",
+          phone: user.phone || "",
+          address: user.address || "",
+        }));
+
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load profile. Please login again.",
+          variant: "destructive",
+        });
+        // Redirect to login if not authenticated
+        if (error.message.includes("Not authorized")) {
+          navigate("/Login");
+        }
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [navigate, toast]);
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+      localStorage.clear();
+      navigate("/Login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      localStorage.clear();
+      navigate("/Login");
+    }
+  };
+
+  const handleSaveCustomerProfile = async () => {
+    try {
+      const response = await api.updateProfile({
+        fullName: customerProfileForm.fullName,
+        email: customerProfileForm.email,
+        phone: customerProfileForm.phone,
+        address: customerProfileForm.address,
+      });
+
+      // Update local state
+      setCustomer({
+        name: response.user.full_name,
+        initial: response.user.full_name.charAt(0).toUpperCase(),
+      });
+
+      // Update localStorage
+      localStorage.setItem("userName", response.user.full_name);
+      localStorage.setItem("userEmail", response.user.email);
+
+      toast({
+        title: "Success",
+        description: "Profile updated successfully!",
+      });
+
+      setShowEditProfileModal(false);
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update profile",
+        variant: "destructive",
+      });
+    }
   };
 
   // Available locations
@@ -472,7 +570,7 @@ const CustomerDashboard = () => {
               </div>
               <span className="text-gray-700">{customer.name}</span>
             </div>
-            <button className="text-gray-500 hover:text-gray-700">
+            <button onClick={handleLogout} className="text-gray-500 hover:text-gray-700">
               <LogOut className="w-5 h-5" />
             </button>
           </div>
