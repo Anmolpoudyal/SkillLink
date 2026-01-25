@@ -43,6 +43,22 @@ const CustomerDashboard = () => {
   // Profile view state
   const [showProfileView, setShowProfileView] = useState(false);
   const [profileTab, setProfileTab] = useState("about");
+  const [profileAvailMonth, setProfileAvailMonth] = useState(new Date(2026, 0, 1)); // January 2026
+  const [profileSelectedDate, setProfileSelectedDate] = useState(new Date(2026, 0, 26)); // Jan 26
+  const [profileSelectedSlot, setProfileSelectedSlot] = useState(null);
+
+  // Profile time slots data
+  const profileTimeSlots = [
+    { time: "09:00 AM", status: "available" },
+    { time: "10:00 AM", status: "available" },
+    { time: "11:00 AM", status: "booked" },
+    { time: "12:00 PM", status: "available" },
+    { time: "01:00 PM", status: "lunch" },
+    { time: "02:00 PM", status: "available" },
+    { time: "03:00 PM", status: "available" },
+    { time: "04:00 PM", status: "booked" },
+    { time: "05:00 PM", status: "available" },
+  ];
 
   // Availability modal state
   const [showSlotsModal, setShowSlotsModal] = useState(false);
@@ -286,7 +302,7 @@ const CustomerDashboard = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handleViewProfile(provider.id)}
+              onClick={() => handleViewProfile(provider)}
               className="text-gray-600"
             >
               <Eye className="w-4 h-4 mr-1" />
@@ -418,6 +434,431 @@ const CustomerDashboard = () => {
           </div>
         )}
       </div>
+
+      {/* Provider Profile View */}
+      {showProfileView && selectedProvider && (
+        <div className="fixed inset-0 bg-gray-50 z-50 overflow-y-auto">
+          {/* Back to Search Header */}
+          <div className="bg-white border-b border-gray-200">
+            <div className="max-w-5xl mx-auto px-6 py-4">
+              <button
+                onClick={handleBackFromProfile}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span className="font-medium">Back to Search</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="max-w-5xl mx-auto p-6">
+            {/* Profile Header Card */}
+            <Card className="bg-white border border-gray-100 shadow-sm mb-6">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-6">
+                    {/* Avatar */}
+                    <div className="w-24 h-24 rounded-full bg-teal-400 flex items-center justify-center text-white font-bold text-4xl">
+                      {selectedProvider.initial}
+                    </div>
+                    {/* Provider Info */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h1 className="text-2xl font-bold text-gray-900">{selectedProvider.name}</h1>
+                        <CheckCircle className="w-5 h-5 text-teal-500" />
+                      </div>
+                      <span className={`inline-block px-3 py-1 text-sm font-medium rounded-full mb-3 ${getServiceColor(selectedProvider.service)}`}>
+                        {selectedProvider.service}
+                      </span>
+                      <div className="flex items-center gap-4 text-sm text-gray-500 mb-2">
+                        <div className="flex items-center gap-1">
+                          <MapPin className="w-4 h-4" />
+                          <span>{selectedProvider.location}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          <span>Member since 2019</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <Phone className="w-4 h-4" />
+                          <span>+977 9841234567</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Mail className="w-4 h-4" />
+                          <span>ram.sharma@email.com</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+                    >
+                      <Phone className="w-4 h-4" />
+                      Call
+                    </Button>
+                    <Button
+                      onClick={handleBookFromProfile}
+                      className="bg-teal-500 hover:bg-teal-600 text-white"
+                    >
+                      Book Now
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Stats Row */}
+            <div className="grid grid-cols-4 gap-4 mb-6">
+              <Card className="bg-white border border-gray-100">
+                <CardContent className="p-4 text-center">
+                  <div className="flex items-center justify-center gap-1 text-amber-500 mb-1">
+                    <Star className="w-5 h-5 fill-amber-500" />
+                    <span className="text-xl font-bold">{selectedProvider.rating}</span>
+                  </div>
+                  <p className="text-sm text-gray-500">Rating</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border border-gray-100">
+                <CardContent className="p-4 text-center">
+                  <p className="text-xl font-bold text-gray-900 mb-1">{selectedProvider.reviews}</p>
+                  <p className="text-sm text-gray-500">Reviews</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border border-gray-100">
+                <CardContent className="p-4 text-center">
+                  <div className="flex items-center justify-center gap-1 text-gray-900 mb-1">
+                    <Clock className="w-5 h-5" />
+                    <span className="text-xl font-bold">{selectedProvider.experience}</span>
+                  </div>
+                  <p className="text-sm text-gray-500">Years Exp.</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border border-gray-100">
+                <CardContent className="p-4 text-center">
+                  <p className="text-xl font-bold text-teal-600 mb-1">$ {selectedProvider.hourlyRate}</p>
+                  <p className="text-sm text-gray-500">NPR/hour</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Profile Tabs */}
+            <Card className="bg-white border border-gray-100">
+              {/* Tab Headers */}
+              <div className="border-b border-gray-200">
+                <div className="flex">
+                  {["about", "portfolio", "reviews", "availability"].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setProfileTab(tab)}
+                      className={`flex-1 px-6 py-4 text-sm font-medium capitalize transition-colors
+                        ${profileTab === tab
+                          ? "text-teal-600 border-b-2 border-teal-500"
+                          : "text-gray-500 hover:text-gray-700"
+                        }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tab Content */}
+              <CardContent className="p-6">
+                {profileTab === "about" && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">About Me</h3>
+                    <p className="text-gray-600 leading-relaxed">
+                      Professional electrician with over {selectedProvider.experience} years of experience in residential and commercial electrical work. 
+                      Specialized in wiring, panel installations, and LED fixture setups. Committed to safety and quality workmanship.
+                    </p>
+                  </div>
+                )}
+
+                {profileTab === "portfolio" && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Portfolio</h3>
+                    <div className="grid grid-cols-3 gap-4">
+                      {[1, 2, 3, 4, 5, 6].map((item) => (
+                        <div key={item} className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
+                          <span className="text-sm">Project {item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {profileTab === "reviews" && (
+                  <div className="space-y-6">
+                    {/* Rating Overview */}
+                    <Card className="bg-white border border-gray-100">
+                      <CardContent className="p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-6">Rating Overview</h3>
+                        <div className="flex items-start gap-8">
+                          {/* Left side - Overall rating */}
+                          <div className="text-center">
+                            <p className="text-5xl font-bold text-teal-500 mb-1">{selectedProvider.rating}</p>
+                            <div className="flex items-center justify-center gap-1 mb-2">
+                              {[...Array(5)].map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`w-5 h-5 ${i < Math.floor(selectedProvider.rating) ? "text-amber-500 fill-amber-500" : "text-gray-300"}`}
+                                />
+                              ))}
+                            </div>
+                            <p className="text-sm text-gray-500">Based on {selectedProvider.reviews} reviews</p>
+                          </div>
+                          
+                          {/* Right side - Rating bars */}
+                          <div className="flex-1 space-y-2">
+                            {[
+                              { stars: 5, count: 89 },
+                              { stars: 4, count: 25 },
+                              { stars: 3, count: 7 },
+                              { stars: 2, count: 2 },
+                              { stars: 1, count: 1 },
+                            ].map((item) => {
+                              const percentage = (item.count / selectedProvider.reviews) * 100;
+                              return (
+                                <div key={item.stars} className="flex items-center gap-3">
+                                  <div className="flex items-center gap-1 w-8">
+                                    <span className="text-sm text-gray-600">{item.stars}</span>
+                                    <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                                  </div>
+                                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-amber-500 rounded-full"
+                                      style={{ width: `${percentage}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-sm text-gray-500 w-8 text-right">{item.count}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Customer Reviews */}
+                    <Card className="bg-white border border-gray-100">
+                      <CardContent className="p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-6">Customer Reviews</h3>
+                        <div className="space-y-0">
+                          {[
+                            { name: "Amit Poudel", initial: "A", rating: 5, comment: "Excellent work! Ram fixed our electrical panel quickly and professionally. Highly recommended!", date: "2 days ago", bgColor: "bg-teal-500" },
+                            { name: "Sunita Karki", initial: "S", rating: 5, comment: "Very punctual and skilled. Did a great job with our home wiring. Fair pricing too.", date: "1 week ago", bgColor: "bg-blue-500" },
+                            { name: "Bikash Thapa", initial: "B", rating: 4, comment: "Good service overall. Completed the work on time. Would hire again.", date: "2 weeks ago", bgColor: "bg-teal-500" },
+                            { name: "Rekha Shrestha", initial: "R", rating: 5, comment: "Amazing work on our LED installation. The whole house looks beautiful now!", date: "3 weeks ago", bgColor: "bg-orange-500" },
+                            { name: "Dipak Maharjan", initial: "D", rating: 4, comment: "Professional and knowledgeable. Fixed a tricky wiring issue that others couldn't solve.", date: "1 month ago", bgColor: "bg-teal-400" },
+                          ].map((review, index) => (
+                            <div key={index} className="py-5 border-b border-gray-100 last:border-0">
+                              <div className="flex items-start gap-4">
+                                <div className={`w-10 h-10 rounded-full ${review.bgColor} flex items-center justify-center text-white font-semibold flex-shrink-0`}>
+                                  {review.initial}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <p className="font-semibold text-gray-900">{review.name}</p>
+                                    <p className="text-sm text-gray-400">{review.date}</p>
+                                  </div>
+                                  <div className="flex items-center gap-1 mb-2">
+                                    {[...Array(5)].map((_, i) => (
+                                      <Star
+                                        key={i}
+                                        className={`w-4 h-4 ${i < review.rating ? "text-amber-500 fill-amber-500" : "text-gray-300"}`}
+                                      />
+                                    ))}
+                                  </div>
+                                  <p className="text-teal-700 text-sm">{review.comment}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Load More Button */}
+                        <div className="mt-6">
+                          <Button
+                            variant="outline"
+                            className="w-full py-3 border-gray-200 text-gray-700 hover:bg-gray-50"
+                          >
+                            Load More Reviews
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+
+                {profileTab === "availability" && (
+                  <div className="space-y-6">
+                    <h3 className="text-xl font-semibold text-gray-900">Available Time Slots</h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Select Date Card */}
+                      <Card className="border border-dashed border-gray-200">
+                        <CardContent className="p-6">
+                          <h4 className="text-lg font-semibold text-gray-900 mb-4">Select Date</h4>
+                          
+                          {/* Month Navigation */}
+                          <div className="flex items-center justify-center gap-4 mb-4">
+                            <button
+                              onClick={() => setProfileAvailMonth(new Date(profileAvailMonth.getFullYear(), profileAvailMonth.getMonth() - 1, 1))}
+                              className="p-1 hover:bg-gray-100 rounded transition-colors"
+                            >
+                              <ChevronLeft className="w-5 h-5 text-gray-400" />
+                            </button>
+                            <span className="text-base font-medium text-gray-700">
+                              {profileAvailMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                            </span>
+                            <button
+                              onClick={() => setProfileAvailMonth(new Date(profileAvailMonth.getFullYear(), profileAvailMonth.getMonth() + 1, 1))}
+                              className="p-1 hover:bg-gray-100 rounded transition-colors"
+                            >
+                              <ChevronRight className="w-5 h-5 text-gray-400" />
+                            </button>
+                          </div>
+
+                          {/* Day headers */}
+                          <div className="grid grid-cols-7 gap-1 mb-2">
+                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+                              <div key={day} className="text-center text-sm font-medium text-gray-400 py-2">
+                                {day}
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Calendar days */}
+                          <div className="grid grid-cols-7 gap-1">
+                            {(() => {
+                              const firstDay = new Date(profileAvailMonth.getFullYear(), profileAvailMonth.getMonth(), 1);
+                              const lastDay = new Date(profileAvailMonth.getFullYear(), profileAvailMonth.getMonth() + 1, 0);
+                              const startPadding = firstDay.getDay();
+                              const days = [];
+                              
+                              // Previous month days
+                              const prevMonthLastDay = new Date(profileAvailMonth.getFullYear(), profileAvailMonth.getMonth(), 0).getDate();
+                              for (let i = startPadding - 1; i >= 0; i--) {
+                                days.push(
+                                  <div key={`prev-${i}`} className="h-9 flex items-center justify-center text-sm text-gray-300">
+                                    {prevMonthLastDay - i}
+                                  </div>
+                                );
+                              }
+
+                              // Current month days
+                              for (let day = 1; day <= lastDay.getDate(); day++) {
+                                const date = new Date(profileAvailMonth.getFullYear(), profileAvailMonth.getMonth(), day);
+                                const isSelected = profileSelectedDate &&
+                                  date.getDate() === profileSelectedDate.getDate() &&
+                                  date.getMonth() === profileSelectedDate.getMonth() &&
+                                  date.getFullYear() === profileSelectedDate.getFullYear();
+                                const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
+
+                                days.push(
+                                  <button
+                                    key={day}
+                                    onClick={() => !isPast && setProfileSelectedDate(date)}
+                                    disabled={isPast}
+                                    className={`h-9 w-9 mx-auto rounded-md flex items-center justify-center text-sm transition-colors
+                                      ${isSelected
+                                        ? 'bg-teal-500 text-white'
+                                        : isPast
+                                          ? 'text-gray-300 cursor-not-allowed'
+                                          : 'hover:bg-gray-100 text-gray-600'
+                                      }`}
+                                  >
+                                    {day}
+                                  </button>
+                                );
+                              }
+
+                              return days;
+                            })()}
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Available Time Slots Card */}
+                      <Card className="border border-dashed border-gray-200">
+                        <CardContent className="p-6">
+                          <h4 className="text-lg font-semibold text-gray-900 mb-1">Available Time Slots</h4>
+                          <p className="text-sm text-gray-500 mb-4">
+                            {profileSelectedDate
+                              ? profileSelectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+                              : 'Select a date'
+                            }
+                          </p>
+                          
+                          <div className="grid grid-cols-2 gap-3">
+                            {profileTimeSlots.map((slot, index) => (
+                              <button
+                                key={index}
+                                onClick={() => slot.status === 'available' && setProfileSelectedSlot(slot.time)}
+                                disabled={slot.status !== 'available'}
+                                className={`relative p-4 rounded-lg border text-sm font-medium transition-colors
+                                  ${slot.status === 'available'
+                                    ? profileSelectedSlot === slot.time
+                                      ? 'border-teal-500 bg-teal-50 text-teal-700'
+                                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 cursor-pointer'
+                                    : 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
+                                  }`}
+                              >
+                                <span>{slot.time}</span>
+                                {slot.status === 'booked' && (
+                                  <span className="block mt-1 text-xs text-teal-600 font-medium">
+                                    Booked
+                                  </span>
+                                )}
+                                {slot.status === 'lunch' && (
+                                  <span className="block mt-1 text-xs text-teal-600 font-medium">
+                                    Lunch Break
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Book Appointment Button */}
+                    <div className="flex justify-center pt-4">
+                      <Button
+                        onClick={() => {
+                          if (profileSelectedSlot && profileSelectedDate) {
+                            const dateStr = profileSelectedDate.toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              month: 'long',
+                              day: 'numeric',
+                              year: 'numeric',
+                            });
+                            setBookingForm({
+                              ...bookingForm,
+                              selectedDateTime: `${dateStr} at ${profileSelectedSlot}`,
+                            });
+                            setShowProfileView(false);
+                            setShowBookingForm(true);
+                          }
+                        }}
+                        disabled={!profileSelectedSlot}
+                        className="px-8 py-3 bg-teal-500 hover:bg-teal-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Book an Appointment
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
 
       {/* Booking Form View */}
       {showBookingForm && selectedProvider && (
