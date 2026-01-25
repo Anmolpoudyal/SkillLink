@@ -8,7 +8,7 @@ const Router = express.Router();
 const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'Strict',
+    sameSite: process.env.NODE_ENV === 'production' ? 'Strict' : 'Lax',
     maxAge: 24 * 60 * 60 * 1000, // 1 day
 };
 
