@@ -35,6 +35,7 @@ const Login = () => {
       });
 
       // Store user info
+      localStorage.setItem("userId", response.user.id);
       localStorage.setItem("userRole", response.user.role);
       localStorage.setItem("isLoggedIn", "true");
       localStorage.setItem("userEmail", response.user.email);
@@ -49,9 +50,9 @@ const Login = () => {
       if (response.user.role === "admin") {
         navigate("/admin");
       } else if (response.user.role === "service_provider") {
-        navigate("/provider");
+        navigate("/provider-dashboard");
       } else {
-        navigate("/customer");
+        navigate("/customer-dashboard");
       }
     } catch (error) {
       toast({
