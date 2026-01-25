@@ -1544,83 +1544,55 @@ const CustomerDashboard = () => {
       {/* Report Modal */}
       {showReportModal && reportBooking && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 pb-4">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Report Service Provider</h2>
-                <p className="text-sm text-gray-500 mt-1">Help us maintain quality standards</p>
-              </div>
+            <div className="flex items-center justify-between p-5 pb-4">
+              <h2 className="text-lg font-bold text-gray-900">Report Provider</h2>
               <button
                 onClick={() => setShowReportModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="px-6 pb-6">
-              {/* Provider Info */}
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg mb-4">
-                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold">
-                  {reportBooking.provider.initial}
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">{reportBooking.provider.name}</p>
-                  <p className="text-sm text-gray-500">{reportBooking.provider.service}</p>
-                </div>
-              </div>
-
-              {/* Reason Selection */}
+            <div className="px-5 pb-5">
+              {/* Reason Dropdown */}
               <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-3">Reason for Report</label>
-                <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Reason</label>
+                <select
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none"
+                >
+                  <option value="">Select a reason</option>
                   {reportReasons.map((reason) => (
-                    <button
-                      key={reason}
-                      onClick={() => setReportReason(reason)}
-                      className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
-                        reportReason === reason
-                          ? "border-red-500 bg-red-50 text-red-700"
-                          : "border-gray-200 hover:border-gray-300 text-gray-700"
-                      }`}
-                    >
-                      {reason}
-                    </button>
+                    <option key={reason} value={reason}>{reason}</option>
                   ))}
-                </div>
+                </select>
               </div>
 
               {/* Description */}
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-3">Additional Details (Optional)</label>
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Details (Optional)</label>
                 <textarea
-                  placeholder="Provide more details about the issue..."
+                  placeholder="Describe the issue..."
                   value={reportDescription}
                   onChange={(e) => setReportDescription(e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none resize-y"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none resize-none"
                 />
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowReportModal(false)}
-                  className="flex-1 py-3 border-gray-300 text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSubmitReport}
-                  disabled={!reportReason}
-                  className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Submit Report
-                </Button>
-              </div>
+              {/* Submit Button */}
+              <Button
+                onClick={handleSubmitReport}
+                disabled={!reportReason}
+                className="w-full py-3 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Submit Report
+              </Button>
             </div>
           </div>
         </div>
