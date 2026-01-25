@@ -18,6 +18,11 @@ import {
   Phone,
   Mail,
   CheckCircle,
+  Copy,
+  AlertTriangle,
+  PlayCircle,
+  AlertCircle,
+  Flag,
 } from "lucide-react";
 
 const CustomerDashboard = () => {
@@ -59,6 +64,102 @@ const CustomerDashboard = () => {
     { time: "04:00 PM", status: "booked" },
     { time: "05:00 PM", status: "available" },
   ];
+
+  // My Bookings state
+  const [showMyBookings, setShowMyBookings] = useState(false);
+  const [bookingsTab, setBookingsTab] = useState("all");
+
+  // Sample bookings data
+  const myBookings = [
+    {
+      id: 1,
+      provider: { name: "Ram Sharma", initial: "R", service: "Electrician" },
+      description: "Ceiling fan not working",
+      date: "2024-01-15 at 10:00 AM",
+      location: "Kathmandu",
+      status: "pending",
+      payment: 1200,
+    },
+    {
+      id: 2,
+      provider: { name: "Sita Thapa", initial: "S", service: "Plumber" },
+      description: "Kitchen sink leaking",
+      date: "2024-01-12 14:00",
+      location: "Lalitpur",
+      status: "active",
+      payment: 1500,
+      verificationCode: "582914",
+    },
+    {
+      id: 3,
+      provider: { name: "Hari Bahadur", initial: "H", service: "Carpenter" },
+      description: "Door repair needed",
+      date: "2024-01-05 at 9:00 AM",
+      location: "Kathmandu",
+      status: "done",
+      payment: 2000,
+    },
+  ];
+
+  // Rating modal state
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [ratingBooking, setRatingBooking] = useState(null);
+  const [ratingValue, setRatingValue] = useState(0);
+  const [ratingHover, setRatingHover] = useState(0);
+  const [reviewText, setReviewText] = useState("");
+
+  const handleOpenRatingModal = (booking) => {
+    setRatingBooking(booking);
+    setRatingValue(0);
+    setRatingHover(0);
+    setReviewText("");
+    setShowRatingModal(true);
+  };
+
+  const handleSubmitRating = () => {
+    console.log("Submitting rating:", {
+      booking: ratingBooking,
+      rating: ratingValue,
+      review: reviewText,
+    });
+    // TODO: Implement API call
+    setShowRatingModal(false);
+    setRatingBooking(null);
+  };
+
+  // Report modal state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportBooking, setReportBooking] = useState(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDescription, setReportDescription] = useState("");
+
+  const reportReasons = [
+    "Poor quality of work",
+    "Unprofessional behavior",
+    "Did not show up",
+    "Overcharged",
+    "Damaged property",
+    "Harassment or inappropriate behavior",
+    "Other",
+  ];
+
+  const handleOpenReportModal = (booking) => {
+    setReportBooking(booking);
+    setReportReason("");
+    setReportDescription("");
+    setShowReportModal(true);
+  };
+
+  const handleSubmitReport = () => {
+    console.log("Submitting report:", {
+      booking: reportBooking,
+      reason: reportReason,
+      description: reportDescription,
+    });
+    // TODO: Implement API call
+    setShowReportModal(false);
+    setReportBooking(null);
+  };
 
   // Availability modal state
   const [showSlotsModal, setShowSlotsModal] = useState(false);
@@ -333,7 +434,10 @@ const CustomerDashboard = () => {
             <span className="text-xl font-semibold text-gray-800">SkillLink</span>
           </div>
           <div className="flex items-center gap-6">
-            <button className="flex items-center gap-2 text-gray-600 hover:text-gray-800">
+            <button 
+              onClick={() => setShowMyBookings(true)}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
+            >
               <Calendar className="w-5 h-5" />
               <span>My Bookings</span>
             </button>
@@ -434,6 +538,197 @@ const CustomerDashboard = () => {
           </div>
         )}
       </div>
+
+      {/* My Bookings View */}
+      {showMyBookings && (
+        <div className="fixed inset-0 bg-gray-50 z-50 overflow-y-auto">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b border-gray-200">
+            <div className="max-w-5xl mx-auto px-6 py-4">
+              <button
+                onClick={() => setShowMyBookings(false)}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-4"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span className="font-medium">Back to Dashboard</span>
+              </button>
+              <h1 className="text-2xl font-bold text-gray-900">My Bookings</h1>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="bg-white border-b border-gray-200">
+            <div className="max-w-5xl mx-auto px-6">
+              <div className="flex gap-1">
+                {[
+                  { id: "all", label: "All" },
+                  { id: "pending", label: "Pending" },
+                  { id: "active", label: "Active", count: myBookings.filter(b => b.status === "active").length },
+                  { id: "done", label: "Done" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setBookingsTab(tab.id)}
+                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2
+                      ${bookingsTab === tab.id
+                        ? "border-teal-500 text-teal-600"
+                        : "border-transparent text-gray-500 hover:text-gray-700"
+                      }`}
+                  >
+                    {tab.label}
+                    {tab.count && (
+                      <span className="bg-teal-500 text-white text-xs px-2 py-0.5 rounded-full">
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Bookings List */}
+          <div className="max-w-5xl mx-auto p-6 space-y-4">
+            {myBookings
+              .filter((booking) => bookingsTab === "all" || booking.status === bookingsTab)
+              .map((booking) => (
+                <Card key={booking.id} className="bg-white border border-gray-100 shadow-sm">
+                  <CardContent className="p-6">
+                    {/* Booking Header */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-semibold text-lg">
+                          {booking.provider.initial}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{booking.provider.name}</h3>
+                          <p className="text-sm text-gray-500">{booking.provider.service}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {booking.status === "pending" && (
+                          <>
+                            <AlertCircle className="w-4 h-4 text-orange-500" />
+                            <span className="px-3 py-1 bg-orange-100 text-orange-600 text-xs font-medium rounded-full">
+                              Pending
+                            </span>
+                          </>
+                        )}
+                        {booking.status === "active" && (
+                          <>
+                            <PlayCircle className="w-4 h-4 text-teal-500" />
+                            <span className="px-3 py-1 bg-teal-100 text-teal-600 text-xs font-medium rounded-full">
+                              In Progress
+                            </span>
+                          </>
+                        )}
+                        {booking.status === "done" && (
+                          <>
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <span className="px-3 py-1 bg-green-100 text-green-600 text-xs font-medium rounded-full">
+                              Completed
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Booking Details */}
+                    <p className="text-gray-700 mb-2">{booking.description}</p>
+                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        <span>{booking.date}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <MapPin className="w-4 h-4" />
+                        <span>{booking.location}</span>
+                      </div>
+                    </div>
+
+                    {/* Verification Code for Active Bookings */}
+                    {booking.status === "active" && booking.verificationCode && (
+                      <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                        <div className="flex items-center gap-2 mb-4">
+                          <CheckCircle className="w-5 h-5 text-teal-500" />
+                          <span className="font-medium text-gray-900">Verification Code</span>
+                        </div>
+                        
+                        {/* Code Display */}
+                        <div className="flex items-center justify-center gap-2 mb-4">
+                          {booking.verificationCode.split('').map((digit, index) => (
+                            <div
+                              key={index}
+                              className="w-10 h-12 bg-white border border-gray-200 rounded-lg flex items-center justify-center text-lg font-semibold text-gray-800"
+                            >
+                              {digit}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Copy Code Button */}
+                        <button
+                          onClick={() => navigator.clipboard.writeText(booking.verificationCode)}
+                          className="w-full flex items-center justify-center gap-2 py-2 text-gray-600 hover:text-gray-800 border-t border-gray-200"
+                        >
+                          <Copy className="w-4 h-4" />
+                          <span className="text-sm">Copy Code</span>
+                        </button>
+
+                        {/* Share Info */}
+                        <div className="text-center mt-3">
+                          <p className="text-sm text-gray-500">
+                            Share with <span className="font-medium text-gray-700">{booking.provider.name}</span>
+                          </p>
+                          <p className="text-sm text-teal-600 font-medium">Payment: NPR {booking.payment}</p>
+                        </div>
+
+                        {/* Warning */}
+                        <div className="mt-4 p-3 bg-amber-50 rounded-lg flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-amber-700">
+                            Only share this code when the service is completed to your satisfaction. Payment will be released once the provider enters this code.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Rate Service for Completed Bookings */}
+                    {booking.status === "done" && (
+                      <div className="mt-4">
+                        <div className="flex gap-3">
+                          <Button 
+                            onClick={() => handleOpenRatingModal(booking)}
+                            className="flex-1 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white"
+                          >
+                            <Star className="w-4 h-4 mr-2" />
+                            Rate Service
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => handleOpenReportModal(booking)}
+                            className="py-3 px-6 border-red-200 text-red-600 hover:bg-red-50"
+                          >
+                            <Flag className="w-4 h-4 mr-2" />
+                            Report
+                          </Button>
+                        </div>
+                        <p className="text-sm text-teal-600 font-medium mt-3">Paid: NPR {booking.payment}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+
+            {/* No Bookings Message */}
+            {myBookings.filter((booking) => bookingsTab === "all" || booking.status === bookingsTab).length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-gray-500 text-lg">No bookings found</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Provider Profile View */}
       {showProfileView && selectedProvider && (
@@ -1171,6 +1466,160 @@ const CustomerDashboard = () => {
                     ))}
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rating Modal */}
+      {showRatingModal && ratingBooking && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Rate Your Experience</h2>
+                <p className="text-sm text-gray-500 mt-1">Help others by sharing your feedback</p>
+              </div>
+              <button
+                onClick={() => setShowRatingModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 pb-6">
+              {/* Star Rating */}
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-3">Rating</label>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setRatingValue(star)}
+                      onMouseEnter={() => setRatingHover(star)}
+                      onMouseLeave={() => setRatingHover(0)}
+                      className="transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={`w-10 h-10 ${
+                          star <= (ratingHover || ratingValue)
+                            ? "text-amber-400 fill-amber-400"
+                            : "text-gray-300"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Review Text */}
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-3">Review (Optional)</label>
+                <textarea
+                  placeholder="Share your experience..."
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  rows={4}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none resize-y"
+                />
+              </div>
+
+              {/* Submit Button */}
+              <Button
+                onClick={handleSubmitRating}
+                disabled={ratingValue === 0}
+                className="w-full py-3 bg-teal-500 hover:bg-teal-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Submit Rating
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Modal */}
+      {showReportModal && reportBooking && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Report Service Provider</h2>
+                <p className="text-sm text-gray-500 mt-1">Help us maintain quality standards</p>
+              </div>
+              <button
+                onClick={() => setShowReportModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 pb-6">
+              {/* Provider Info */}
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg mb-4">
+                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold">
+                  {reportBooking.provider.initial}
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">{reportBooking.provider.name}</p>
+                  <p className="text-sm text-gray-500">{reportBooking.provider.service}</p>
+                </div>
+              </div>
+
+              {/* Reason Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-3">Reason for Report</label>
+                <div className="space-y-2">
+                  {reportReasons.map((reason) => (
+                    <button
+                      key={reason}
+                      onClick={() => setReportReason(reason)}
+                      className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                        reportReason === reason
+                          ? "border-red-500 bg-red-50 text-red-700"
+                          : "border-gray-200 hover:border-gray-300 text-gray-700"
+                      }`}
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-3">Additional Details (Optional)</label>
+                <textarea
+                  placeholder="Provide more details about the issue..."
+                  value={reportDescription}
+                  onChange={(e) => setReportDescription(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none resize-y"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowReportModal(false)}
+                  className="flex-1 py-3 border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSubmitReport}
+                  disabled={!reportReason}
+                  className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Submit Report
+                </Button>
               </div>
             </div>
           </div>
