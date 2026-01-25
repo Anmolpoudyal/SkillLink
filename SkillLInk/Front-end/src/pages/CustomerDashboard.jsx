@@ -23,6 +23,9 @@ import {
   PlayCircle,
   AlertCircle,
   Flag,
+  Edit,
+  Camera,
+  User,
 } from "lucide-react";
 
 const CustomerDashboard = () => {
@@ -208,6 +211,21 @@ const CustomerDashboard = () => {
   const customer = {
     name: "Customer",
     initial: "C",
+  };
+
+  // Edit Profile modal state
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [customerProfileForm, setCustomerProfileForm] = useState({
+    fullName: "Customer Name",
+    email: "customer@email.com",
+    phone: "+977 9812345678",
+    address: "Kathmandu, Nepal",
+  });
+
+  const handleSaveCustomerProfile = () => {
+    console.log("Saving customer profile:", customerProfileForm);
+    // TODO: Implement API call to save profile
+    setShowEditProfileModal(false);
   };
 
   // Available locations
@@ -440,6 +458,13 @@ const CustomerDashboard = () => {
             >
               <Calendar className="w-5 h-5" />
               <span>My Bookings</span>
+            </button>
+            <button 
+              onClick={() => setShowEditProfileModal(true)}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
+            >
+              <Edit className="w-5 h-5" />
+              <span>Edit Profile</span>
             </button>
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 font-medium">
@@ -1593,6 +1618,129 @@ const CustomerDashboard = () => {
               >
                 Submit Report
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Profile Modal */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            {/* Modal Header */}
+            <div className="p-6 pb-4 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-800">Edit Profile</h3>
+                <button
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">Update your account information</p>
+            </div>
+
+            {/* Profile Form */}
+            <div className="p-6 space-y-5">
+              {/* Profile Photo */}
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-full bg-teal-400 flex items-center justify-center text-white font-bold text-xl">
+                    {customerProfileForm.fullName.charAt(0)}
+                  </div>
+                  <button className="absolute bottom-0 right-0 w-6 h-6 bg-teal-500 rounded-full flex items-center justify-center text-white hover:bg-teal-600 transition-colors">
+                    <Camera className="w-3 h-3" />
+                  </button>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">Profile Photo</p>
+                  <p className="text-sm text-gray-500">Click to change</p>
+                </div>
+              </div>
+
+              {/* Full Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={customerProfileForm.fullName}
+                    onChange={(e) => setCustomerProfileForm({ ...customerProfileForm, fullName: e.target.value })}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    value={customerProfileForm.email}
+                    onChange={(e) => setCustomerProfileForm({ ...customerProfileForm, email: e.target.value })}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone Number
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="tel"
+                    value={customerProfileForm.phone}
+                    onChange={(e) => setCustomerProfileForm({ ...customerProfileForm, phone: e.target.value })}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Address */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Address
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                  <textarea
+                    value={customerProfileForm.address}
+                    onChange={(e) => setCustomerProfileForm({ ...customerProfileForm, address: e.target.value })}
+                    rows={2}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="p-6 pt-4 border-t border-gray-100">
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="flex-1 py-3 border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveCustomerProfile}
+                  className="flex-1 py-3 bg-teal-500 hover:bg-teal-600 text-white"
+                >
+                  Save Changes
+                </Button>
+              </div>
             </div>
           </div>
         </div>

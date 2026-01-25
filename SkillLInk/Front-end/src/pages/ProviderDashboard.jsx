@@ -19,6 +19,11 @@ import {
   Plus,
   Trash2,
   CalendarDays,
+  Edit,
+  Camera,
+  Phone,
+  Mail,
+  User,
 } from "lucide-react";
 
 const ProviderDashboard = () => {
@@ -76,6 +81,42 @@ const ProviderDashboard = () => {
     console.log("Saving settings:", settingsForm);
     // TODO: Implement API call to save settings
     setShowSettingsModal(false);
+  };
+
+  // Edit Profile modal state
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    fullName: "Ram Sharma",
+    email: "ram.sharma@email.com",
+    phone: "+977 9841234567",
+    service: "Electrician",
+    location: "Kathmandu",
+    bio: "Professional electrician with over 8 years of experience in residential and commercial electrical work. Specialized in wiring, panel installations, and LED fixture setups. Committed to safety and quality workmanship.",
+    experience: "8",
+  });
+
+  const serviceOptions = [
+    "Electrician",
+    "Plumber",
+    "Carpenter",
+    "AC Repair",
+    "Painter",
+    "Cleaner",
+    "Appliance Repair",
+  ];
+
+  const locationOptions = [
+    "Kathmandu",
+    "Lalitpur",
+    "Bhaktapur",
+    "Pokhara",
+    "Biratnagar",
+  ];
+
+  const handleSaveProfile = () => {
+    console.log("Saving profile:", profileForm);
+    // TODO: Implement API call to save profile
+    setShowEditProfileModal(false);
   };
 
   const handleOpenBlockModal = (date = null) => {
@@ -382,6 +423,13 @@ const ProviderDashboard = () => {
             <span className="text-xl font-semibold text-gray-800">SkillLink</span>
           </div>
           <div className="flex items-center gap-6">
+            <button 
+              onClick={() => setShowEditProfileModal(true)}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
+            >
+              <Edit className="w-5 h-5" />
+              <span>Edit Profile</span>
+            </button>
             <button 
               onClick={() => setShowSettingsModal(true)}
               className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
@@ -1023,6 +1071,177 @@ const ProviderDashboard = () => {
               >
                 Save Changes
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Profile Modal */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white p-6 pb-4 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-800">Edit Profile</h3>
+                <button
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">Update your profile information</p>
+            </div>
+
+            {/* Profile Form */}
+            <div className="p-6 space-y-5">
+              {/* Profile Photo */}
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full bg-teal-400 flex items-center justify-center text-white font-bold text-2xl">
+                    {profileForm.fullName.charAt(0)}
+                  </div>
+                  <button className="absolute bottom-0 right-0 w-7 h-7 bg-teal-500 rounded-full flex items-center justify-center text-white hover:bg-teal-600 transition-colors">
+                    <Camera className="w-4 h-4" />
+                  </button>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">Profile Photo</p>
+                  <p className="text-sm text-gray-500">Click camera to change</p>
+                </div>
+              </div>
+
+              {/* Full Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={profileForm.fullName}
+                    onChange={(e) => setProfileForm({ ...profileForm, fullName: e.target.value })}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    value={profileForm.email}
+                    onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone Number
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="tel"
+                    value={profileForm.phone}
+                    onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Service Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Service Category
+                </label>
+                <select
+                  value={profileForm.service}
+                  onChange={(e) => setProfileForm({ ...profileForm, service: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none"
+                >
+                  {serviceOptions.map((service) => (
+                    <option key={service} value={service}>{service}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Location */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Service Location
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <select
+                    value={profileForm.location}
+                    onChange={(e) => setProfileForm({ ...profileForm, location: e.target.value })}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none appearance-none"
+                  >
+                    {locationOptions.map((location) => (
+                      <option key={location} value={location}>{location}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Years of Experience */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Years of Experience
+                </label>
+                <input
+                  type="number"
+                  value={profileForm.experience}
+                  onChange={(e) => setProfileForm({ ...profileForm, experience: e.target.value })}
+                  min="0"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none"
+                />
+              </div>
+
+              {/* Bio */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  About Me
+                </label>
+                <textarea
+                  value={profileForm.bio}
+                  onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
+                  rows={4}
+                  placeholder="Describe your skills, experience, and what makes you stand out..."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none resize-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">{profileForm.bio.length}/500 characters</p>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="sticky bottom-0 bg-white p-6 pt-4 border-t border-gray-100">
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="flex-1 py-3 border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveProfile}
+                  className="flex-1 py-3 bg-teal-500 hover:bg-teal-600 text-white"
+                >
+                  Save Changes
+                </Button>
+              </div>
             </div>
           </div>
         </div>
