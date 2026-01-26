@@ -318,6 +318,202 @@ Router.post('/login', async (req, res) => {
         }
     });
 
+    // Get all service providers with search/filter
+    Router.get('/providers', async (req, res) => {
+        try {
+            const { search, location, service, maxRate } = req.query;
+
+            let query = `
+                SELECT 
+                    u.id,
+                    u.full_name as name,
+                    u.profile_photo,
+                    sp.hourly_rate,
+                    sp.years_of_experience as experience,
+                    sp.bio,
+                    sc.name as service,
+                    COALESCE(
+                        (SELECT AVG(r.rating) FROM reviews r WHERE r.provider_id = u.id),
+                        0
+                    ) as rating,
+                    COALESCE(
+                        (SELECT COUNT(*) FROM reviews r WHERE r.provider_id = u.id),
+                        0
+                    ) as reviews_count,
+                    COALESCE(
+                        (SELECT spl.location FROM service_provider_locations spl WHERE spl.provider_id = u.id LIMIT 1),
+                        'Not specified'
+                    ) as location
+                FROM users u
+                JOIN service_providers sp ON u.id = sp.id
+                LEFT JOIN service_categories sc ON sp.service_category_id = sc.id
+                WHERE u.role = 'service_provider' AND u.is_active = true
+            `;
+
+            const params = [];
+            let paramIndex = 1;
+
+            // Search filter (name or service)
+            if (search) {
+                query += ` AND (u.full_name ILIKE $${paramIndex} OR sc.name ILIKE $${paramIndex})`;
+                params.push(`%${search}%`);
+                paramIndex++;
+            }
+
+            // Location filter
+            if (location && location !== 'All Locations') {
+                query += ` AND EXISTS (SELECT 1 FROM service_provider_locations spl WHERE spl.provider_id = u.id AND spl.location ILIKE $${paramIndex})`;
+                params.push(`%${location}%`);
+                paramIndex++;
+            }
+
+            // Service filter
+            if (service && service !== 'All Services') {
+                query += ` AND sc.name = $${paramIndex}`;
+                params.push(service);
+                paramIndex++;
+            }
+
+            // Max hourly rate filter
+            if (maxRate) {
+                query += ` AND sp.hourly_rate <= $${paramIndex}`;
+                params.push(parseFloat(maxRate));
+                paramIndex++;
+            }
+
+            query += ` ORDER BY rating DESC, reviews_count DESC`;
+
+            const result = await pool.query(query, params);
+
+            // Format the response
+            const providers = result.rows.map(row => ({
+                id: row.id,
+                name: row.name,
+                initial: row.name ? row.name.charAt(0).toUpperCase() : 'P',
+                service: row.service || 'General',
+                location: row.location,
+                rating: parseFloat(row.rating) || 0,
+                reviews: parseInt(row.reviews_count) || 0,
+                experience: row.experience || 0,
+                hourlyRate: parseFloat(row.hourly_rate) || 0,
+                bio: row.bio || '',
+                profilePhoto: row.profile_photo
+            }));
+
+            res.json({ providers });
+        } catch (error) {
+            console.error('Get providers error:', error);
+            res.status(500).json({ message: 'Server error getting providers' });
+        }
+    });
+
+    // Get single provider details
+    Router.get('/providers/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            const providerQuery = `
+                SELECT 
+                    u.id,
+                    u.full_name as name,
+                    u.email,
+                    u.phone,
+                    u.profile_photo,
+                    sp.hourly_rate,
+                    sp.years_of_experience as experience,
+                    sp.bio,
+                    sc.name as service,
+                    COALESCE(
+                        (SELECT AVG(r.rating) FROM reviews r WHERE r.provider_id = u.id),
+                        0
+                    ) as rating,
+                    COALESCE(
+                        (SELECT COUNT(*) FROM reviews r WHERE r.provider_id = u.id),
+                        0
+                    ) as reviews_count
+                FROM users u
+                JOIN service_providers sp ON u.id = sp.id
+                LEFT JOIN service_categories sc ON sp.service_category_id = sc.id
+                WHERE u.id = $1 AND u.role = 'service_provider'
+            `;
+
+            const providerResult = await pool.query(providerQuery, [id]);
+
+            if (providerResult.rows.length === 0) {
+                return res.status(404).json({ message: 'Provider not found' });
+            }
+
+            const provider = providerResult.rows[0];
+
+            // Get locations
+            const locationsResult = await pool.query(
+                'SELECT location FROM service_provider_locations WHERE provider_id = $1',
+                [id]
+            );
+
+            // Get reviews
+            const reviewsResult = await pool.query(`
+                SELECT r.*, u.full_name as customer_name
+                FROM reviews r
+                JOIN users u ON r.customer_id = u.id
+                WHERE r.provider_id = $1
+                ORDER BY r.created_at DESC
+                LIMIT 10
+            `, [id]);
+
+            res.json({
+                provider: {
+                    id: provider.id,
+                    name: provider.name,
+                    initial: provider.name ? provider.name.charAt(0).toUpperCase() : 'P',
+                    email: provider.email,
+                    phone: provider.phone,
+                    service: provider.service || 'General',
+                    locations: locationsResult.rows.map(r => r.location),
+                    location: locationsResult.rows[0]?.location || 'Not specified',
+                    rating: parseFloat(provider.rating) || 0,
+                    reviews: parseInt(provider.reviews_count) || 0,
+                    experience: provider.experience || 0,
+                    hourlyRate: parseFloat(provider.hourly_rate) || 0,
+                    bio: provider.bio || '',
+                    profilePhoto: provider.profile_photo
+                },
+                reviews: reviewsResult.rows.map(r => ({
+                    id: r.id,
+                    rating: r.rating,
+                    comment: r.comment,
+                    customerName: r.customer_name,
+                    createdAt: r.created_at
+                }))
+            });
+        } catch (error) {
+            console.error('Get provider details error:', error);
+            res.status(500).json({ message: 'Server error getting provider details' });
+        }
+    });
+
+    // Get service categories
+    Router.get('/categories', async (req, res) => {
+        try {
+            const result = await pool.query('SELECT id, name FROM service_categories ORDER BY name');
+            res.json({ categories: result.rows });
+        } catch (error) {
+            console.error('Get categories error:', error);
+            res.status(500).json({ message: 'Server error getting categories' });
+        }
+    });
+
+    // Get available locations
+    Router.get('/locations', async (req, res) => {
+        try {
+            const result = await pool.query('SELECT DISTINCT location FROM service_provider_locations ORDER BY location');
+            res.json({ locations: result.rows.map(r => r.location) });
+        } catch (error) {
+            console.error('Get locations error:', error);
+            res.status(500).json({ message: 'Server error getting locations' });
+        }
+    });
+
 
     //logout
     Router.post('/logout', (req, res) => {

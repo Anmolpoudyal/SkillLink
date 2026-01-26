@@ -326,84 +326,70 @@ const CustomerDashboard = () => {
     }
   };
 
-  // Available locations
-  const locations = ["All Locations", "Kathmandu", "Lalitpur", "Bhaktapur"];
+  // Available locations - will be fetched from API
+  const [locations, setLocations] = useState(["All Locations"]);
 
-  // Available services
-  const services = ["All Services", "Electrician", "Plumber", "Carpenter", "AC Repair", "Painter"];
+  // Available services - will be fetched from API
+  const [services, setServices] = useState(["All Services"]);
 
-  // Sample providers data
-  const providers = [
-    {
-      id: 1,
-      name: "Ram Sharma",
-      initial: "R",
-      service: "Electrician",
-      location: "Kathmandu",
-      rating: 4.8,
-      reviews: 124,
-      experience: 8,
-      hourlyRate: 600,
-    },
-    {
-      id: 2,
-      name: "Sita Thapa",
-      initial: "S",
-      service: "Plumber",
-      location: "Lalitpur",
-      rating: 4.9,
-      reviews: 98,
-      experience: 5,
-      hourlyRate: 500,
-    },
-    {
-      id: 3,
-      name: "Hari Bahadur",
-      initial: "H",
-      service: "Carpenter",
-      location: "Kathmandu",
-      rating: 4.7,
-      reviews: 156,
-      experience: 10,
-      hourlyRate: 550,
-    },
-    {
-      id: 4,
-      name: "Gita Rai",
-      initial: "G",
-      service: "AC Repair",
-      location: "Bhaktapur",
-      rating: 4.9,
-      reviews: 87,
-      experience: 6,
-      hourlyRate: 700,
-    },
-    {
-      id: 5,
-      name: "Krishna Tamang",
-      initial: "K",
-      service: "Electrician",
-      location: "Kathmandu",
-      rating: 4.6,
-      reviews: 143,
-      experience: 7,
-      hourlyRate: 650,
-    },
-  ];
+  // Providers state - fetched from API
+  const [providers, setProviders] = useState([]);
+  const [providersLoading, setProvidersLoading] = useState(true);
 
-  // Filter providers based on search and filters
-  const filteredProviders = providers.filter((provider) => {
-    const matchesSearch =
-      provider.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      provider.service.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesLocation =
-      selectedLocation === "All Locations" || provider.location === selectedLocation;
-    const matchesService =
-      selectedService === "All Services" || provider.service === selectedService;
-    const matchesRate = !maxRate || provider.hourlyRate <= Number(maxRate);
+  // Fetch locations and categories on mount
+  useEffect(() => {
+    const fetchFiltersData = async () => {
+      try {
+        const [locationsRes, categoriesRes] = await Promise.all([
+          api.getLocations(),
+          api.getCategories()
+        ]);
+        
+        setLocations(["All Locations", ...locationsRes.locations]);
+        setServices(["All Services", ...categoriesRes.categories.map(c => c.name)]);
+      } catch (error) {
+        console.error("Error fetching filter data:", error);
+      }
+    };
 
-    return matchesSearch && matchesLocation && matchesService && matchesRate;
-  });
+    fetchFiltersData();
+  }, []);
+
+  // Fetch providers when search/filter changes
+  useEffect(() => {
+    const fetchProviders = async () => {
+      setProvidersLoading(true);
+      try {
+        const response = await api.getProviders({
+          search: searchQuery,
+          location: selectedLocation,
+          service: selectedService,
+          maxRate: maxRate || undefined
+        });
+        
+        setProviders(response.providers);
+      } catch (error) {
+        console.error("Error fetching providers:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load providers",
+          variant: "destructive",
+        });
+      } finally {
+        setProvidersLoading(false);
+      }
+    };
+
+    // Debounce the search
+    const timeoutId = setTimeout(() => {
+      fetchProviders();
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, selectedLocation, selectedService, maxRate, toast]);
+
+  // Filter is now done on the backend, so just use providers directly
+  const filteredProviders = providers;
 
   const getServiceColor = (service) => {
     const colors = {
@@ -412,6 +398,10 @@ const CustomerDashboard = () => {
       Carpenter: "bg-amber-100 text-amber-700",
       "AC Repair": "bg-cyan-100 text-cyan-700",
       Painter: "bg-purple-100 text-purple-700",
+      "Appliance Repair": "bg-orange-100 text-orange-700",
+      "Pest Control": "bg-red-100 text-red-700",
+      Cleaner: "bg-green-100 text-green-700",
+      General: "bg-gray-100 text-gray-700",
     };
     return colors[service] || "bg-gray-100 text-gray-700";
   };
@@ -647,14 +637,21 @@ const CustomerDashboard = () => {
         </Card>
 
         {/* Providers Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProviders.map((provider) => (
-            <ProviderCard key={provider.id} provider={provider} />
-          ))}
-        </div>
+        {providersLoading ? (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-teal-500 border-t-transparent"></div>
+            <p className="text-gray-500 mt-4">Loading providers...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredProviders.map((provider) => (
+              <ProviderCard key={provider.id} provider={provider} />
+            ))}
+          </div>
+        )}
 
         {/* No Results */}
-        {filteredProviders.length === 0 && (
+        {!providersLoading && filteredProviders.length === 0 && (
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">No providers found matching your criteria</p>
             <p className="text-gray-400 mt-2">Try adjusting your filters</p>

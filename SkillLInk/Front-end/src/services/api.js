@@ -100,6 +100,52 @@ const api = {
     return handleResponse(response);
   },
 
+  // Get providers with search/filter
+  getProviders: async (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.search) params.append('search', filters.search);
+    if (filters.location) params.append('location', filters.location);
+    if (filters.service) params.append('service', filters.service);
+    if (filters.maxRate) params.append('maxRate', filters.maxRate);
+    
+    const response = await fetch(`${API_BASE_URL}/api/auth/providers?${params}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Get single provider details
+  getProviderDetails: async (providerId) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/providers/${providerId}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Get service categories
+  getCategories: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/categories`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Get available locations
+  getLocations: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/locations`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+
   // Admin API calls
   admin: {
     // Get all users
