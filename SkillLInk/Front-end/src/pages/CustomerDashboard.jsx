@@ -487,14 +487,56 @@ const CustomerDashboard = () => {
     setSelectedProvider(null);
   };
 
-  const handleSendBookingRequest = () => {
-    console.log("Sending booking request:", {
-      provider: selectedProvider,
-      bookingDetails: bookingForm,
-    });
-    // TODO: Implement API call to send booking request
-    setShowBookingForm(false);
-    setSelectedProvider(null);
+  const handleSendBookingRequest = async () => {
+    // Validate required fields
+    if (!bookingForm.problemDescription || !bookingForm.address || !bookingForm.selectedDateTime) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields (problem description, address, and date/time)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Parse date and time from selectedDateTime
+    const [datePart, timePart] = bookingForm.selectedDateTime.split('T');
+    
+    try {
+      await api.createBooking({
+        providerId: selectedProvider.id,
+        problemDescription: bookingForm.problemDescription,
+        serviceAddress: bookingForm.address,
+        latitude: bookingForm.latitude || null,
+        longitude: bookingForm.longitude || null,
+        preferredDate: datePart,
+        preferredTime: timePart || '09:00',
+      });
+
+      toast({
+        title: "Booking Request Sent!",
+        description: `Your request has been sent to ${selectedProvider.name}. They will respond soon.`,
+      });
+
+      setShowBookingForm(false);
+      setSelectedProvider(null);
+      setBookingForm({
+        fullName: "",
+        phone: "",
+        email: "",
+        problemDescription: "",
+        address: "",
+        latitude: "27.7172",
+        longitude: "85.3240",
+        selectedDateTime: "",
+      });
+    } catch (error) {
+      console.error("Error sending booking request:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send booking request. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const ProviderCard = ({ provider }) => (

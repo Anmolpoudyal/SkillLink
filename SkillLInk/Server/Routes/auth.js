@@ -836,6 +836,339 @@ Router.post('/login', async (req, res) => {
         }
     });
 
+    // ============================================
+    // BOOKING ENDPOINTS
+    // ============================================
+
+    // Create a new booking (customer)
+    Router.post('/bookings', protect, async (req, res) => {
+        try {
+            const customerId = req.user.id;
+            const { 
+                providerId, 
+                problemDescription, 
+                serviceAddress, 
+                latitude, 
+                longitude, 
+                preferredDate, 
+                preferredTime 
+            } = req.body;
+
+            if (!providerId || !problemDescription || !serviceAddress || !preferredDate || !preferredTime) {
+                return res.status(400).json({ message: 'All required fields must be filled' });
+            }
+
+            const result = await pool.query(`
+                INSERT INTO bookings (customer_id, provider_id, problem_description, service_address, latitude, longitude, preferred_date, preferred_time)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING *
+            `, [customerId, providerId, problemDescription, serviceAddress, latitude || null, longitude || null, preferredDate, preferredTime]);
+
+            res.status(201).json({ 
+                message: 'Booking request sent successfully', 
+                booking: result.rows[0] 
+            });
+        } catch (error) {
+            console.error('Create booking error:', error);
+            res.status(500).json({ message: 'Server error creating booking' });
+        }
+    });
+
+    // Get bookings for provider
+    Router.get('/provider/bookings', protect, async (req, res) => {
+        try {
+            const providerId = req.user.id;
+            const { status } = req.query;
+
+            let query = `
+                SELECT 
+                    b.*,
+                    u.full_name as customer_name,
+                    u.phone as customer_phone,
+                    u.email as customer_email,
+                    u.profile_photo as customer_photo
+                FROM bookings b
+                JOIN users u ON b.customer_id = u.id
+                WHERE b.provider_id = $1
+            `;
+            const params = [providerId];
+
+            if (status && status !== 'all') {
+                query += ` AND b.status = $2`;
+                params.push(status);
+            }
+
+            query += ` ORDER BY b.created_at DESC`;
+
+            const result = await pool.query(query, params);
+
+            const bookings = result.rows.map(b => ({
+                id: b.id,
+                customer: {
+                    id: b.customer_id,
+                    name: b.customer_name,
+                    phone: b.customer_phone,
+                    email: b.customer_email,
+                    photo: b.customer_photo,
+                    initial: b.customer_name ? b.customer_name.charAt(0).toUpperCase() : 'C'
+                },
+                problemDescription: b.problem_description,
+                serviceAddress: b.service_address,
+                latitude: b.latitude,
+                longitude: b.longitude,
+                preferredDate: b.preferred_date,
+                preferredTime: b.preferred_time,
+                status: b.status,
+                verificationCode: b.verification_code,
+                estimatedAmount: b.estimated_amount,
+                finalAmount: b.final_amount,
+                providerNotes: b.provider_notes,
+                rejectionReason: b.rejection_reason,
+                createdAt: b.created_at,
+                acceptedAt: b.accepted_at,
+                startedAt: b.started_at,
+                completedAt: b.completed_at
+            }));
+
+            res.json({ bookings });
+        } catch (error) {
+            console.error('Get provider bookings error:', error);
+            res.status(500).json({ message: 'Server error getting bookings' });
+        }
+    });
+
+    // Get bookings for customer
+    Router.get('/customer/bookings', protect, async (req, res) => {
+        try {
+            const customerId = req.user.id;
+            const { status } = req.query;
+
+            let query = `
+                SELECT 
+                    b.*,
+                    u.full_name as provider_name,
+                    u.phone as provider_phone,
+                    u.email as provider_email,
+                    u.profile_photo as provider_photo,
+                    sc.name as service_name
+                FROM bookings b
+                JOIN users u ON b.provider_id = u.id
+                LEFT JOIN service_providers sp ON b.provider_id = sp.id
+                LEFT JOIN service_categories sc ON sp.service_category_id = sc.id
+                WHERE b.customer_id = $1
+            `;
+            const params = [customerId];
+
+            if (status && status !== 'all') {
+                query += ` AND b.status = $2`;
+                params.push(status);
+            }
+
+            query += ` ORDER BY b.created_at DESC`;
+
+            const result = await pool.query(query, params);
+
+            const bookings = result.rows.map(b => ({
+                id: b.id,
+                provider: {
+                    id: b.provider_id,
+                    name: b.provider_name,
+                    phone: b.provider_phone,
+                    email: b.provider_email,
+                    photo: b.provider_photo,
+                    initial: b.provider_name ? b.provider_name.charAt(0).toUpperCase() : 'P',
+                    service: b.service_name || 'General'
+                },
+                problemDescription: b.problem_description,
+                serviceAddress: b.service_address,
+                preferredDate: b.preferred_date,
+                preferredTime: b.preferred_time,
+                status: b.status,
+                verificationCode: b.verification_code,
+                estimatedAmount: b.estimated_amount,
+                finalAmount: b.final_amount,
+                providerNotes: b.provider_notes,
+                createdAt: b.created_at,
+                acceptedAt: b.accepted_at,
+                completedAt: b.completed_at
+            }));
+
+            res.json({ bookings });
+        } catch (error) {
+            console.error('Get customer bookings error:', error);
+            res.status(500).json({ message: 'Server error getting bookings' });
+        }
+    });
+
+    // Get single booking details
+    Router.get('/bookings/:id', protect, async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { id } = req.params;
+
+            const result = await pool.query(`
+                SELECT 
+                    b.*,
+                    c.full_name as customer_name,
+                    c.phone as customer_phone,
+                    c.email as customer_email,
+                    c.profile_photo as customer_photo,
+                    c.address as customer_address,
+                    p.full_name as provider_name,
+                    p.phone as provider_phone,
+                    p.email as provider_email,
+                    p.profile_photo as provider_photo,
+                    sc.name as service_name,
+                    sp.hourly_rate
+                FROM bookings b
+                JOIN users c ON b.customer_id = c.id
+                JOIN users p ON b.provider_id = p.id
+                LEFT JOIN service_providers sp ON b.provider_id = sp.id
+                LEFT JOIN service_categories sc ON sp.service_category_id = sc.id
+                WHERE b.id = $1 AND (b.customer_id = $2 OR b.provider_id = $2)
+            `, [id, userId]);
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ message: 'Booking not found' });
+            }
+
+            const b = result.rows[0];
+            res.json({
+                booking: {
+                    id: b.id,
+                    customer: {
+                        id: b.customer_id,
+                        name: b.customer_name,
+                        phone: b.customer_phone,
+                        email: b.customer_email,
+                        photo: b.customer_photo,
+                        address: b.customer_address,
+                        initial: b.customer_name ? b.customer_name.charAt(0).toUpperCase() : 'C'
+                    },
+                    provider: {
+                        id: b.provider_id,
+                        name: b.provider_name,
+                        phone: b.provider_phone,
+                        email: b.provider_email,
+                        photo: b.provider_photo,
+                        initial: b.provider_name ? b.provider_name.charAt(0).toUpperCase() : 'P',
+                        service: b.service_name || 'General',
+                        hourlyRate: b.hourly_rate
+                    },
+                    problemDescription: b.problem_description,
+                    serviceAddress: b.service_address,
+                    latitude: b.latitude,
+                    longitude: b.longitude,
+                    preferredDate: b.preferred_date,
+                    preferredTime: b.preferred_time,
+                    status: b.status,
+                    verificationCode: b.verification_code,
+                    estimatedAmount: b.estimated_amount,
+                    finalAmount: b.final_amount,
+                    providerNotes: b.provider_notes,
+                    rejectionReason: b.rejection_reason,
+                    createdAt: b.created_at,
+                    acceptedAt: b.accepted_at,
+                    startedAt: b.started_at,
+                    completedAt: b.completed_at
+                }
+            });
+        } catch (error) {
+            console.error('Get booking details error:', error);
+            res.status(500).json({ message: 'Server error getting booking details' });
+        }
+    });
+
+    // Update booking status (provider actions: accept, reject, start, complete)
+    Router.patch('/bookings/:id/status', protect, async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { id } = req.params;
+            const { status, rejectionReason, providerNotes, estimatedAmount } = req.body;
+
+            // Verify the booking belongs to this provider
+            const bookingCheck = await pool.query(
+                'SELECT * FROM bookings WHERE id = $1 AND provider_id = $2',
+                [id, userId]
+            );
+
+            if (bookingCheck.rows.length === 0) {
+                return res.status(404).json({ message: 'Booking not found' });
+            }
+
+            const currentBooking = bookingCheck.rows[0];
+            let updateQuery = 'UPDATE bookings SET status = $1, updated_at = NOW()';
+            const params = [status];
+            let paramIndex = 2;
+
+            // Handle different status transitions
+            if (status === 'accepted') {
+                // Generate 6-digit verification code
+                const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+                updateQuery += `, accepted_at = NOW(), verification_code = $${paramIndex}`;
+                params.push(verificationCode);
+                paramIndex++;
+                
+                if (estimatedAmount) {
+                    updateQuery += `, estimated_amount = $${paramIndex}`;
+                    params.push(estimatedAmount);
+                    paramIndex++;
+                }
+            } else if (status === 'rejected') {
+                updateQuery += `, rejection_reason = $${paramIndex}`;
+                params.push(rejectionReason || 'Not available');
+                paramIndex++;
+            } else if (status === 'in_progress') {
+                updateQuery += `, started_at = NOW()`;
+            } else if (status === 'completed') {
+                updateQuery += `, completed_at = NOW()`;
+            }
+
+            if (providerNotes) {
+                updateQuery += `, provider_notes = $${paramIndex}`;
+                params.push(providerNotes);
+                paramIndex++;
+            }
+
+            updateQuery += ` WHERE id = $${paramIndex} RETURNING *`;
+            params.push(id);
+
+            const result = await pool.query(updateQuery, params);
+
+            res.json({ 
+                message: `Booking ${status} successfully`, 
+                booking: result.rows[0] 
+            });
+        } catch (error) {
+            console.error('Update booking status error:', error);
+            res.status(500).json({ message: 'Server error updating booking' });
+        }
+    });
+
+    // Cancel booking (customer)
+    Router.patch('/bookings/:id/cancel', protect, async (req, res) => {
+        try {
+            const customerId = req.user.id;
+            const { id } = req.params;
+
+            const result = await pool.query(`
+                UPDATE bookings 
+                SET status = 'cancelled', updated_at = NOW()
+                WHERE id = $1 AND customer_id = $2 AND status IN ('pending', 'accepted')
+                RETURNING *
+            `, [id, customerId]);
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ message: 'Booking not found or cannot be cancelled' });
+            }
+
+            res.json({ message: 'Booking cancelled successfully', booking: result.rows[0] });
+        } catch (error) {
+            console.error('Cancel booking error:', error);
+            res.status(500).json({ message: 'Server error cancelling booking' });
+        }
+    });
+
 
     //logout
     Router.post('/logout', (req, res) => {

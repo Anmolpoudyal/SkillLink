@@ -207,6 +207,84 @@ const api = {
     return handleResponse(response);
   },
 
+  // ============================================
+  // BOOKING API CALLS
+  // ============================================
+
+  // Create a booking (customer)
+  createBooking: async (bookingData) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/bookings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(bookingData),
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Get provider's bookings
+  getProviderBookings: async (status = null) => {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    
+    const response = await fetch(`${API_BASE_URL}/api/auth/provider/bookings?${params}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Get customer's bookings
+  getCustomerBookings: async (status = null) => {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    
+    const response = await fetch(`${API_BASE_URL}/api/auth/customer/bookings?${params}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Get single booking details
+  getBookingDetails: async (bookingId) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/bookings/${bookingId}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Update booking status (provider: accept, reject, start, complete)
+  updateBookingStatus: async (bookingId, statusData) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/bookings/${bookingId}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(statusData),
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Cancel booking (customer)
+  cancelBooking: async (bookingId) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/bookings/${bookingId}/cancel`, {
+      method: 'PATCH',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+
   // Admin API calls
   admin: {
     // Get all users

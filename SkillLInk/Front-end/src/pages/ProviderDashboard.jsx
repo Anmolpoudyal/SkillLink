@@ -37,6 +37,10 @@ const ProviderDashboard = () => {
   const otpInputRefs = useRef([]);
   const { toast } = useToast();
 
+  // Bookings state - fetched from API
+  const [bookings, setBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(true);
+
   // Weekly schedule state
   const [weeklySchedule, setWeeklySchedule] = useState([
     { day: "Monday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM" },
@@ -263,6 +267,41 @@ const ProviderDashboard = () => {
     fetchAvailability();
   }, []);
 
+  // Fetch bookings on mount
+  useEffect(() => {
+    const fetchBookings = async () => {
+      try {
+        setBookingsLoading(true);
+        const response = await api.getProviderBookings();
+        setBookings(response.bookings || []);
+      } catch (error) {
+        console.error("Error fetching bookings:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load bookings",
+          variant: "destructive",
+        });
+      } finally {
+        setBookingsLoading(false);
+      }
+    };
+
+    fetchBookings();
+  }, [toast]);
+
+  // Filter bookings by status
+  const pendingRequests = bookings.filter(b => b.status === 'pending');
+  const inProgressRequests = bookings.filter(b => b.status === 'accepted' || b.status === 'in_progress');
+  const completedRequests = bookings.filter(b => b.status === 'completed');
+
+  // Stats data - now dynamic
+  const stats = {
+    newRequests: pendingRequests.length,
+    inProgress: inProgressRequests.length,
+    completed: completedRequests.length,
+    earnings: completedRequests.reduce((sum, b) => sum + (parseFloat(b.finalAmount) || 0), 0),
+  };
+
   // Save schedule handler
   const handleSaveSchedule = async () => {
     try {
@@ -371,55 +410,6 @@ const ProviderDashboard = () => {
     }
   };
 
-  // Stats data
-  const stats = {
-    newRequests: 2,
-    inProgress: 1,
-    completed: 124,
-    earnings: 45600,
-  };
-
-  // Booking requests data
-  const pendingRequests = [
-    {
-      id: 1,
-      customerName: "Ramesh Kumar",
-      phone: "+977 9812345678",
-      initial: "R",
-      problemDescription: "Ceiling fan not working",
-      location: "Kathmandu, Thamel",
-      date: "2024-01-15",
-      time: "10:00 AM",
-      isNew: true,
-    },
-    {
-      id: 2,
-      customerName: "Shyam Prasad",
-      phone: "+977 9823456789",
-      initial: "S",
-      problemDescription: "Multiple socket points installation needed",
-      location: "Kathmandu, Baluwatar",
-      date: "2024-01-16",
-      time: "2:00 PM",
-      isNew: true,
-    },
-  ];
-
-  const inProgressRequests = [
-    {
-      id: 3,
-      customerName: "Gita Sharma",
-      phone: "+977 9834567890",
-      initial: "G",
-      problemDescription: "LED light installation in living room",
-      location: "Lalitpur, Pulchowk",
-      date: "2024-01-14",
-      time: "11:00",
-      isNew: false,
-      amount: 2500,
-    },
-  ];
-
   const handleEnterOTP = (request) => {
     setSelectedRequest(request);
     setOtpValues(["", "", "", "", "", ""]);
@@ -446,12 +436,53 @@ const ProviderDashboard = () => {
     }
   };
 
-  const handleVerifyComplete = () => {
+  const handleVerifyComplete = async () => {
     const otp = otpValues.join("");
-    console.log("Verifying OTP:", otp, "for request:", selectedRequest?.id);
-    // TODO: Implement API call to verify OTP
-    setShowOTPModal(false);
-    setSelectedRequest(null);
+    
+    if (otp.length !== 6) {
+      toast({
+        title: "Error",
+        description: "Please enter the complete 6-digit code",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Verify OTP matches the booking's verification code
+    if (otp !== selectedRequest?.verificationCode) {
+      toast({
+        title: "Invalid Code",
+        description: "The verification code doesn't match. Please ask the customer for the correct code.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      await api.updateBookingStatus(selectedRequest.id, {
+        status: 'completed'
+      });
+      
+      // Refresh bookings
+      const response = await api.getProviderBookings();
+      setBookings(response.bookings || []);
+      
+      toast({
+        title: "Job Completed!",
+        description: "The booking has been marked as completed.",
+      });
+      
+      setShowOTPModal(false);
+      setSelectedRequest(null);
+      setOtpValues(["", "", "", "", "", ""]);
+    } catch (error) {
+      console.error("Error completing booking:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to complete booking",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCloseModal = () => {
@@ -470,7 +501,7 @@ const ProviderDashboard = () => {
 
   const handleOpenAcceptModal = (request) => {
     setAcceptingRequest(request);
-    setAcceptForm({ scheduledDateTime: "", totalAmount: 1500 });
+    setAcceptForm({ scheduledDateTime: "", totalAmount: request.estimatedAmount || 1500 });
     setShowAcceptModal(true);
   };
 
@@ -479,38 +510,61 @@ const ProviderDashboard = () => {
     setAcceptingRequest(null);
   };
 
-  const handleConfirmAccept = () => {
-    console.log("Confirming booking:", {
-      request: acceptingRequest,
-      scheduledDateTime: acceptForm.scheduledDateTime,
-      totalAmount: acceptForm.totalAmount,
-    });
-    // TODO: Implement API call to confirm booking
-    setShowAcceptModal(false);
-    setAcceptingRequest(null);
+  const handleConfirmAccept = async () => {
+    try {
+      await api.updateBookingStatus(acceptingRequest.id, {
+        status: 'accepted',
+        estimatedAmount: acceptForm.totalAmount
+      });
+      
+      // Refresh bookings
+      const response = await api.getProviderBookings();
+      setBookings(response.bookings || []);
+      
+      toast({
+        title: "Success",
+        description: "Booking accepted successfully!",
+      });
+      
+      setShowAcceptModal(false);
+      setAcceptingRequest(null);
+    } catch (error) {
+      console.error("Error accepting booking:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to accept booking",
+        variant: "destructive",
+      });
+    }
   };
-
-  const completedRequests = [
-    {
-      id: 4,
-      customerName: "Sita Devi",
-      phone: "+977 9845678901",
-      initial: "S",
-      problemDescription: "Electrical wiring for new room",
-      location: "Bhaktapur, Durbar Square",
-      date: "2024-01-10",
-      time: "9:00 AM",
-      isNew: false,
-    },
-  ];
 
   const handleAccept = (request) => {
     handleOpenAcceptModal(request);
   };
 
-  const handleReject = (requestId) => {
-    console.log("Rejected request:", requestId);
-    // TODO: Implement reject logic
+  const handleReject = async (requestId) => {
+    try {
+      await api.updateBookingStatus(requestId, {
+        status: 'rejected',
+        rejectionReason: 'Not available at the requested time'
+      });
+      
+      // Refresh bookings
+      const response = await api.getProviderBookings();
+      setBookings(response.bookings || []);
+      
+      toast({
+        title: "Booking Rejected",
+        description: "The booking request has been declined.",
+      });
+    } catch (error) {
+      console.error("Error rejecting booking:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to reject booking",
+        variant: "destructive",
+      });
+    }
   };
 
   const StatCard = ({ title, value, icon: Icon, iconColor }) => (
@@ -527,92 +581,120 @@ const ProviderDashboard = () => {
     </Card>
   );
 
-  const BookingRequestCard = ({ request, showActions = true, isInProgress = false }) => (
-    <Card className={`bg-white shadow-sm mb-4 ${isInProgress ? 'border-2 border-teal-100' : 'border border-gray-100'}`}>
-      <CardContent className="p-6">
-        {/* Header with customer info and badge */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-medium text-lg">
-              {request.initial}
+  const BookingRequestCard = ({ request, showActions = true, isInProgress = false, isCompleted = false }) => {
+    // Check if this is a new request (created within last 24 hours)
+    const isNew = request.status === 'pending' && 
+      new Date(request.createdAt) > new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    // Format date for display
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+    
+    return (
+      <Card className={`bg-white shadow-sm mb-4 ${isInProgress ? 'border-2 border-teal-100' : isCompleted ? 'border-2 border-green-100' : 'border border-gray-100'}`}>
+        <CardContent className="p-6">
+          {/* Header with customer info and badge */}
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-medium text-lg">
+                {request.customer?.initial || 'C'}
+              </div>
+              <div>
+                <h4 className="font-semibold text-gray-800">{request.customer?.name || 'Customer'}</h4>
+                <p className="text-sm text-teal-600">{request.customer?.phone || ''}</p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-semibold text-gray-800">{request.customerName}</h4>
-              <p className="text-sm text-teal-600">{request.phone}</p>
-            </div>
+            {isNew && (
+              <span className="px-3 py-1 text-sm font-medium bg-teal-50 text-teal-600 rounded-full">
+                New
+              </span>
+            )}
+            {isInProgress && (
+              <span className="px-3 py-1 text-sm font-medium bg-teal-500 text-white rounded-full">
+                In Progress
+              </span>
+            )}
+            {isCompleted && (
+              <span className="px-3 py-1 text-sm font-medium bg-green-500 text-white rounded-full">
+                Completed
+              </span>
+            )}
           </div>
-          {request.isNew && (
-            <span className="px-3 py-1 text-sm font-medium bg-teal-50 text-teal-600 rounded-full">
-              New
+
+          {/* Problem Description */}
+          <div className="mb-4">
+            <p className="text-sm font-semibold text-gray-700">Problem Description:</p>
+            <p className="text-sm text-gray-500">{request.problemDescription || 'No description provided'}</p>
+          </div>
+
+          {/* Location, Date, Time */}
+          <div className="flex items-center gap-6 text-sm text-gray-500 mb-6">
+            <span className="flex items-center gap-1">
+              <MapPin className="w-4 h-4 text-gray-400" />
+              {request.serviceAddress || 'Not specified'}
             </span>
+            <span className="flex items-center gap-1">
+              <Calendar className="w-4 h-4 text-gray-400" />
+              {formatDate(request.preferredDate)} {request.preferredTime || ''}
+            </span>
+          </div>
+
+          {/* Amount to receive - for in progress and completed */}
+          {(isInProgress || isCompleted) && request.estimatedAmount && (
+            <div className={`${isCompleted ? 'bg-green-50 border-green-100' : 'bg-teal-50 border-teal-100'} border rounded-lg p-4 mb-4 flex items-center justify-between`}>
+              <span className="text-sm text-gray-600">{isCompleted ? 'Amount received:' : 'Amount to receive:'}</span>
+              <span className={`text-lg font-bold ${isCompleted ? 'text-green-500' : 'text-teal-600'}`}>
+                NPR {parseFloat(request.finalAmount || request.estimatedAmount).toLocaleString()}
+              </span>
+            </div>
           )}
+
+          {/* Verification Code - for accepted bookings */}
+          {isInProgress && request.verificationCode && (
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-4">
+              <p className="text-sm text-gray-600 mb-1">Verification Code (Customer will provide):</p>
+              <p className="text-xl font-mono font-bold text-blue-600 tracking-wider">{request.verificationCode}</p>
+            </div>
+          )}
+
+          {/* Action Buttons - for pending */}
+          {showActions && !isInProgress && !isCompleted && (
+            <div className="grid grid-cols-2 gap-4">
+              <Button
+                onClick={() => handleAccept(request)}
+                className="bg-teal-500 hover:bg-teal-600 text-white py-3"
+              >
+                <Check className="w-4 h-4 mr-2" />
+                Accept
+              </Button>
+              <Button
+                onClick={() => handleReject(request.id)}
+                variant="outline"
+                className="border-gray-300 text-gray-600 hover:bg-gray-50 py-3"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Reject
+              </Button>
+            </div>
+          )}
+
+          {/* OTP Button - for in progress */}
           {isInProgress && (
-            <span className="px-3 py-1 text-sm font-medium bg-teal-500 text-white rounded-full">
-              In Progress
-            </span>
-          )}
-        </div>
-
-        {/* Problem Description */}
-        <div className="mb-4">
-          <p className="text-sm font-semibold text-gray-700">Problem Description:</p>
-          <p className="text-sm text-gray-500">{request.problemDescription}</p>
-        </div>
-
-        {/* Location, Date, Time */}
-        <div className="flex items-center gap-6 text-sm text-gray-500 mb-6">
-          <span className="flex items-center gap-1">
-            <MapPin className="w-4 h-4 text-gray-400" />
-            {request.location}
-          </span>
-          <span className="flex items-center gap-1">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            {request.date} {request.time}
-          </span>
-        </div>
-
-        {/* Amount to receive - for in progress */}
-        {isInProgress && request.amount && (
-          <div className="bg-green-50 border border-green-100 rounded-lg p-4 mb-4 flex items-center justify-between">
-            <span className="text-sm text-gray-600">Amount to receive:</span>
-            <span className="text-lg font-bold text-green-500">NPR {request.amount.toLocaleString()}</span>
-          </div>
-        )}
-
-        {/* Action Buttons - for pending */}
-        {showActions && !isInProgress && (
-          <div className="grid grid-cols-2 gap-4">
             <Button
-              onClick={() => handleAccept(request)}
-              className="bg-teal-500 hover:bg-teal-600 text-white py-3"
+              onClick={() => handleEnterOTP(request)}
+              className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white py-3"
             >
               <Check className="w-4 h-4 mr-2" />
-              Accept
+              Enter OTP to Complete
             </Button>
-            <Button
-              onClick={() => handleReject(request.id)}
-              variant="outline"
-              className="border-gray-300 text-gray-600 hover:bg-gray-50 py-3"
-            >
-              <X className="w-4 h-4 mr-2" />
-              Reject
-            </Button>
-          </div>
-        )}
-
-        {/* OTP Button - for in progress */}
-        {isInProgress && (
-          <Button
-            onClick={() => handleEnterOTP(request)}
-            className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white py-3"
-          >
-            <Check className="w-4 h-4 mr-2" />
-            Enter OTP to Complete
-          </Button>
-        )}
-      </CardContent>
-    </Card>
-  );
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   const getRequestsByTab = () => {
     switch (activeBookingTab) {
@@ -760,18 +842,27 @@ const ProviderDashboard = () => {
 
               {/* Request Cards */}
               <div>
-                {getRequestsByTab().map((request) => (
-                  <BookingRequestCard
-                    key={request.id}
-                    request={request}
-                    showActions={activeBookingTab === "pending"}
-                    isInProgress={activeBookingTab === "inProgress"}
-                  />
-                ))}
-                {getRequestsByTab().length === 0 && (
+                {bookingsLoading ? (
                   <div className="text-center py-12 text-gray-500">
-                    No {activeBookingTab} requests at the moment
+                    Loading bookings...
                   </div>
+                ) : (
+                  <>
+                    {getRequestsByTab().map((request) => (
+                      <BookingRequestCard
+                        key={request.id}
+                        request={request}
+                        showActions={activeBookingTab === "pending"}
+                        isInProgress={activeBookingTab === "inProgress"}
+                        isCompleted={activeBookingTab === "completed"}
+                      />
+                    ))}
+                    {getRequestsByTab().length === 0 && (
+                      <div className="text-center py-12 text-gray-500">
+                        No {activeBookingTab === "inProgress" ? "in progress" : activeBookingTab} requests at the moment
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
