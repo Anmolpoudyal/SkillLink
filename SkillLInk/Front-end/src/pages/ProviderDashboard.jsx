@@ -35,17 +35,20 @@ const ProviderDashboard = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [otpValues, setOtpValues] = useState(["", "", "", "", "", ""]);
   const otpInputRefs = useRef([]);
+  const { toast } = useToast();
 
   // Weekly schedule state
   const [weeklySchedule, setWeeklySchedule] = useState([
-    { day: "Monday", enabled: true, startTime: "09:00 AM", endTime: "06:00 PM" },
-    { day: "Tuesday", enabled: true, startTime: "09:00 AM", endTime: "06:00 PM" },
-    { day: "Wednesday", enabled: true, startTime: "09:00 AM", endTime: "06:00 PM" },
-    { day: "Thursday", enabled: true, startTime: "09:00 AM", endTime: "06:00 PM" },
-    { day: "Friday", enabled: true, startTime: "09:00 AM", endTime: "06:00 PM" },
-    { day: "Saturday", enabled: true, startTime: "10:00 AM", endTime: "04:00 PM" },
+    { day: "Monday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM" },
+    { day: "Tuesday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM" },
+    { day: "Wednesday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM" },
+    { day: "Thursday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM" },
+    { day: "Friday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM" },
+    { day: "Saturday", enabled: false, startTime: "10:00 AM", endTime: "04:00 PM" },
     { day: "Sunday", enabled: false, startTime: "10:00 AM", endTime: "04:00 PM" },
   ]);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
+  const [savingSchedule, setSavingSchedule] = useState(false);
 
   // Calendar state
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 0, 1)); // January 2026
@@ -170,21 +173,11 @@ const ProviderDashboard = () => {
   };
 
   const handleBlockTime = () => {
-    if (!selectedDate) return;
-    
-    const newBlock = {
-      id: Date.now(),
-      date: selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      time: `${blockForm.startTime} - ${blockForm.endTime}`,
-      reason: blockForm.reason || "Blocked",
-    };
-    
-    setBlockedSlots([...blockedSlots, newBlock]);
-    handleCloseBlockModal();
+    // Call the API handler instead of local save
+    handleAddTimeOff();
   };
 
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   // Loading state
   const [loading, setLoading] = useState(true);
@@ -240,6 +233,130 @@ const ProviderDashboard = () => {
 
     fetchProfile();
   }, [navigate, toast]);
+
+  // Fetch availability on mount
+  useEffect(() => {
+    const fetchAvailability = async () => {
+      try {
+        setScheduleLoading(true);
+        const response = await api.getMyAvailability();
+        
+        if (response.schedule && response.schedule.length > 0) {
+          setWeeklySchedule(response.schedule);
+        }
+        
+        if (response.blockedSlots) {
+          setBlockedSlots(response.blockedSlots.map(slot => ({
+            id: slot.id,
+            date: new Date(slot.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            time: `${slot.startTime || '00:00'} - ${slot.endTime || '23:59'}`,
+            reason: slot.reason || 'Personal'
+          })));
+        }
+      } catch (error) {
+        console.error("Error fetching availability:", error);
+      } finally {
+        setScheduleLoading(false);
+      }
+    };
+
+    fetchAvailability();
+  }, []);
+
+  // Save schedule handler
+  const handleSaveSchedule = async () => {
+    try {
+      setSavingSchedule(true);
+      await api.saveAvailability(weeklySchedule);
+      toast({
+        title: "Success",
+        description: "Schedule saved successfully!",
+      });
+    } catch (error) {
+      console.error("Error saving schedule:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save schedule",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  // Add time off handler
+  const handleAddTimeOff = async () => {
+    if (!selectedDate) {
+      toast({
+        title: "Error",
+        description: "Please select a date",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Use local date format to avoid timezone issues
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      console.log("Adding time off for date:", dateStr, "selectedDate:", selectedDate);
+      
+      await api.addTimeOff({
+        date: dateStr,
+        startTime: blockForm.startTime,
+        endTime: blockForm.endTime,
+        reason: blockForm.reason || 'Personal'
+      });
+
+      // Refresh blocked slots
+      const response = await api.getMyAvailability();
+      if (response.blockedSlots) {
+        setBlockedSlots(response.blockedSlots.map(slot => ({
+          id: slot.id,
+          date: new Date(slot.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          time: `${slot.startTime || '00:00'} - ${slot.endTime || '23:59'}`,
+          reason: slot.reason || 'Personal'
+        })));
+      }
+
+      setShowBlockModal(false);
+      setBlockForm({ startTime: "09:00 AM", endTime: "06:00 PM", reason: "" });
+      
+      toast({
+        title: "Success",
+        description: "Time off added successfully!",
+      });
+    } catch (error) {
+      console.error("Error adding time off:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add time off",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Delete time off handler
+  const handleDeleteTimeOff = async (id) => {
+    try {
+      await api.deleteTimeOff(id);
+      setBlockedSlots(prev => prev.filter(slot => slot.id !== id));
+      toast({
+        title: "Success",
+        description: "Time off removed successfully!",
+      });
+    } catch (error) {
+      console.error("Error deleting time off:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete time off",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Handle logout
   const handleLogout = async () => {
@@ -746,10 +863,11 @@ const ProviderDashboard = () => {
                   </div>
 
                   <Button
-                    className="w-full mt-6 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white py-3"
-                    onClick={() => console.log("Save schedule:", weeklySchedule)}
+                    className="w-full mt-6 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white py-3 disabled:opacity-50"
+                    onClick={handleSaveSchedule}
+                    disabled={savingSchedule}
                   >
-                    Save Schedule
+                    {savingSchedule ? "Saving..." : "Save Schedule"}
                   </Button>
                 </CardContent>
               </Card>
@@ -871,7 +989,7 @@ const ProviderDashboard = () => {
                               </span>
                             </div>
                             <button
-                              onClick={() => setBlockedSlots(blockedSlots.filter((s) => s.id !== slot.id))}
+                              onClick={() => handleDeleteTimeOff(slot.id)}
                               className="text-red-400 hover:text-red-600 transition-colors"
                             >
                               <Trash2 className="w-5 h-5" />

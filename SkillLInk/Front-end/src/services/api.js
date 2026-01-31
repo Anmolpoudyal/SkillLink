@@ -146,6 +146,67 @@ const api = {
     return handleResponse(response);
   },
 
+  // Get provider availability
+  getProviderAvailability: async (providerId, date = null) => {
+    const params = new URLSearchParams();
+    if (date) params.append('date', date);
+    
+    const response = await fetch(`${API_BASE_URL}/api/auth/providers/${providerId}/availability?${params}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Get my availability (for provider dashboard)
+  getMyAvailability: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/my-availability`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Save availability schedule
+  saveAvailability: async (schedule) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/availability`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ schedule }),
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Add time off
+  addTimeOff: async (timeOffData) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/time-off`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(timeOffData),
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Delete time off
+  deleteTimeOff: async (id) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/time-off/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    
+    return handleResponse(response);
+  },
+
   // Admin API calls
   admin: {
     // Get all users

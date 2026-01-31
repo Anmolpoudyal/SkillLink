@@ -58,18 +58,10 @@ const CustomerDashboard = () => {
   const [profileSelectedDate, setProfileSelectedDate] = useState(new Date(2026, 0, 26)); // Jan 26
   const [profileSelectedSlot, setProfileSelectedSlot] = useState(null);
 
-  // Profile time slots data
-  const profileTimeSlots = [
-    { time: "09:00 AM", status: "available" },
-    { time: "10:00 AM", status: "available" },
-    { time: "11:00 AM", status: "booked" },
-    { time: "12:00 PM", status: "available" },
-    { time: "01:00 PM", status: "lunch" },
-    { time: "02:00 PM", status: "available" },
-    { time: "03:00 PM", status: "available" },
-    { time: "04:00 PM", status: "booked" },
-    { time: "05:00 PM", status: "available" },
-  ];
+  // Dynamic profile time slots from API
+  const [profileTimeSlots, setProfileTimeSlots] = useState([]);
+  const [profileTimeSlotsLoading, setProfileTimeSlotsLoading] = useState(false);
+  const [weeklySchedule, setWeeklySchedule] = useState([]);
 
   // My Bookings state
   const [showMyBookings, setShowMyBookings] = useState(false);
@@ -172,21 +164,16 @@ const CustomerDashboard = () => {
   const [slotsMonth, setSlotsMonth] = useState(new Date(2026, 0, 1)); // January 2026
   const [selectedSlotDate, setSelectedSlotDate] = useState(new Date(2026, 0, 25)); // Jan 25
 
-  // Sample time slots data
-  const timeSlots = [
-    { time: "09:00 AM", status: "available" },
-    { time: "10:00 AM", status: "available" },
-    { time: "11:00 AM", status: "booked" },
-    { time: "12:00 PM", status: "available" },
-    { time: "01:00 PM", status: "lunch" },
-    { time: "02:00 PM", status: "available" },
-    { time: "03:00 PM", status: "available" },
-    { time: "04:00 PM", status: "booked" },
-    { time: "05:00 PM", status: "available" },
-  ];
+  // Dynamic time slots from API for booking modal
+  const [timeSlots, setTimeSlots] = useState([]);
+  const [timeSlotsLoading, setTimeSlotsLoading] = useState(false);
 
   const handleOpenSlotsModal = () => {
     setShowSlotsModal(true);
+    // Fetch slots when modal opens
+    if (selectedProvider) {
+      fetchTimeSlots(selectedProvider.id, selectedSlotDate);
+    }
   };
 
   const handleCloseSlotsModal = () => {
@@ -387,6 +374,53 @@ const CustomerDashboard = () => {
 
     return () => clearTimeout(timeoutId);
   }, [searchQuery, selectedLocation, selectedService, maxRate, toast]);
+
+  // Function to fetch time slots for a provider on a specific date
+  const fetchTimeSlots = async (providerId, date) => {
+    setTimeSlotsLoading(true);
+    try {
+      const dateStr = date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+      const response = await api.getProviderAvailability(providerId, dateStr);
+      setTimeSlots(response.timeSlots || []);
+    } catch (error) {
+      console.error("Error fetching time slots:", error);
+      setTimeSlots([]);
+    } finally {
+      setTimeSlotsLoading(false);
+    }
+  };
+
+  // Function to fetch profile time slots
+  const fetchProfileTimeSlots = async (providerId, date) => {
+    setProfileTimeSlotsLoading(true);
+    try {
+      const dateStr = date.toISOString().split('T')[0];
+      console.log("Fetching availability for provider:", providerId, "date:", dateStr);
+      const response = await api.getProviderAvailability(providerId, dateStr);
+      console.log("API response:", response);
+      setProfileTimeSlots(response.timeSlots || []);
+      setWeeklySchedule(response.weeklySchedule || []);
+    } catch (error) {
+      console.error("Error fetching profile time slots:", error);
+      setProfileTimeSlots([]);
+    } finally {
+      setProfileTimeSlotsLoading(false);
+    }
+  };
+
+  // Fetch time slots when profile date changes
+  useEffect(() => {
+    if (selectedProvider && showProfileView && profileTab === "availability") {
+      fetchProfileTimeSlots(selectedProvider.id, profileSelectedDate);
+    }
+  }, [selectedProvider, showProfileView, profileTab, profileSelectedDate]);
+
+  // Fetch time slots when booking modal date changes
+  useEffect(() => {
+    if (selectedProvider && showSlotsModal) {
+      fetchTimeSlots(selectedProvider.id, selectedSlotDate);
+    }
+  }, [selectedProvider, showSlotsModal, selectedSlotDate]);
 
   // Filter is now done on the backend, so just use providers directly
   const filteredProviders = providers;
@@ -1210,34 +1244,51 @@ const CustomerDashboard = () => {
                             }
                           </p>
                           
-                          <div className="grid grid-cols-2 gap-3">
-                            {profileTimeSlots.map((slot, index) => (
-                              <button
-                                key={index}
-                                onClick={() => slot.status === 'available' && setProfileSelectedSlot(slot.time)}
-                                disabled={slot.status !== 'available'}
-                                className={`relative p-4 rounded-lg border text-sm font-medium transition-colors
-                                  ${slot.status === 'available'
-                                    ? profileSelectedSlot === slot.time
-                                      ? 'border-teal-500 bg-teal-50 text-teal-700'
-                                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 cursor-pointer'
-                                    : 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
-                                  }`}
-                              >
-                                <span>{slot.time}</span>
-                                {slot.status === 'booked' && (
-                                  <span className="block mt-1 text-xs text-teal-600 font-medium">
-                                    Booked
-                                  </span>
-                                )}
-                                {slot.status === 'lunch' && (
-                                  <span className="block mt-1 text-xs text-teal-600 font-medium">
-                                    Lunch Break
-                                  </span>
-                                )}
-                              </button>
-                            ))}
-                          </div>
+                          {profileTimeSlotsLoading ? (
+                            <div className="flex items-center justify-center py-8">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-500"></div>
+                            </div>
+                          ) : profileTimeSlots.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                              <Clock className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                              <p>No available slots for this date</p>
+                              <p className="text-sm">Provider may not work on this day</p>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-3">
+                              {profileTimeSlots.map((slot, index) => (
+                                <button
+                                  key={index}
+                                  onClick={() => slot.status === 'available' && setProfileSelectedSlot(slot.time)}
+                                  disabled={slot.status !== 'available'}
+                                  className={`relative p-4 rounded-lg border text-sm font-medium transition-colors
+                                    ${slot.status === 'available'
+                                      ? profileSelectedSlot === slot.time
+                                        ? 'border-teal-500 bg-teal-50 text-teal-700'
+                                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 cursor-pointer'
+                                      : 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
+                                    }`}
+                                >
+                                  <span>{slot.time}</span>
+                                  {slot.status === 'booked' && (
+                                    <span className="block mt-1 text-xs text-teal-600 font-medium">
+                                      Booked
+                                    </span>
+                                  )}
+                                  {slot.status === 'lunch' && (
+                                    <span className="block mt-1 text-xs text-teal-600 font-medium">
+                                      Lunch Break
+                                    </span>
+                                  )}
+                                  {slot.status === 'blocked' && (
+                                    <span className="block mt-1 text-xs text-red-600 font-medium">
+                                      Unavailable
+                                    </span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     </div>
@@ -1557,34 +1608,51 @@ const CustomerDashboard = () => {
                       : 'Select a date'
                     }
                   </h3>
-                  <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2">
-                    {timeSlots.map((slot, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleSelectTimeSlot(slot)}
-                        disabled={slot.status !== 'available'}
-                        className={`relative p-3 rounded-lg border text-sm font-medium transition-colors
-                          ${slot.status === 'available'
-                            ? 'border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:border-teal-300 cursor-pointer'
-                            : slot.status === 'booked'
-                              ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                              : 'border-orange-200 bg-orange-50 text-orange-400 cursor-not-allowed'
-                          }`}
-                      >
-                        <span>{slot.time}</span>
-                        {slot.status === 'booked' && (
-                          <span className="absolute top-1 right-1 text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
-                            Booked
-                          </span>
-                        )}
-                        {slot.status === 'lunch' && (
-                          <span className="absolute top-1 right-1 text-xs bg-orange-200 text-orange-600 px-2 py-0.5 rounded-full">
-                            Lunch Break
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
+                  {timeSlotsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-500"></div>
+                    </div>
+                  ) : timeSlots.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Clock className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                      <p>No available slots for this date</p>
+                      <p className="text-sm">Provider may not work on this day</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2">
+                      {timeSlots.map((slot, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleSelectTimeSlot(slot)}
+                          disabled={slot.status !== 'available'}
+                          className={`relative p-3 rounded-lg border text-sm font-medium transition-colors
+                            ${slot.status === 'available'
+                              ? 'border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:border-teal-300 cursor-pointer'
+                              : slot.status === 'booked'
+                                ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                                : 'border-orange-200 bg-orange-50 text-orange-400 cursor-not-allowed'
+                            }`}
+                        >
+                          <span>{slot.time}</span>
+                          {slot.status === 'booked' && (
+                            <span className="absolute top-1 right-1 text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+                              Booked
+                            </span>
+                          )}
+                          {slot.status === 'lunch' && (
+                            <span className="absolute top-1 right-1 text-xs bg-orange-200 text-orange-600 px-2 py-0.5 rounded-full">
+                              Lunch Break
+                            </span>
+                          )}
+                          {slot.status === 'blocked' && (
+                            <span className="absolute top-1 right-1 text-xs bg-red-200 text-red-600 px-2 py-0.5 rounded-full">
+                              Unavailable
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

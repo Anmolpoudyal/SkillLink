@@ -514,6 +514,328 @@ Router.post('/login', async (req, res) => {
         }
     });
 
+    // Get provider availability schedule
+    Router.get('/providers/:id/availability', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { date } = req.query; // Optional: specific date to check
+
+            // Get weekly availability schedule
+            const availabilityResult = await pool.query(`
+                SELECT day_of_week, is_available, start_time, end_time
+                FROM provider_availability
+                WHERE provider_id = $1
+                ORDER BY day_of_week
+            `, [id]);
+
+            // Get blocked slots for the next 30 days (from provider_time_off table)
+            let blockedSlotsResult = { rows: [] };
+            try {
+                blockedSlotsResult = await pool.query(`
+                    SELECT time_off_date as blocked_date, start_time, end_time, reason
+                    FROM provider_time_off
+                    WHERE provider_id = $1 
+                    AND time_off_date >= CURRENT_DATE
+                    AND time_off_date <= CURRENT_DATE + INTERVAL '30 days'
+                    ORDER BY time_off_date
+                `, [id]);
+            } catch (e) {
+                // Table might not exist, continue without blocked slots
+                console.log('provider_time_off table not found or error:', e.message);
+            }
+
+            // Get booked slots for the next 30 days
+            let bookedSlotsResult = { rows: [] };
+            try {
+                bookedSlotsResult = await pool.query(`
+                    SELECT preferred_date, preferred_time
+                    FROM bookings
+                    WHERE provider_id = $1
+                    AND status IN ('pending', 'accepted', 'in_progress')
+                    AND preferred_date >= CURRENT_DATE
+                    AND preferred_date <= CURRENT_DATE + INTERVAL '30 days'
+                `, [id]);
+            } catch (e) {
+                // Table might not exist, continue without booked slots
+                console.log('bookings table not found or error:', e.message);
+            }
+
+            // Format weekly schedule
+            const weeklySchedule = {};
+            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            
+            // Default all days to unavailable
+            dayNames.forEach((day, index) => {
+                weeklySchedule[index] = {
+                    day: day,
+                    isAvailable: false,
+                    startTime: null,
+                    endTime: null
+                };
+            });
+
+            // Override with actual availability
+            availabilityResult.rows.forEach(row => {
+                weeklySchedule[row.day_of_week] = {
+                    day: dayNames[row.day_of_week],
+                    isAvailable: row.is_available,
+                    startTime: row.start_time,
+                    endTime: row.end_time
+                };
+            });
+
+            // Generate time slots for a specific date if provided
+            let timeSlots = [];
+            if (date) {
+                const requestedDate = new Date(date);
+                const dayOfWeek = requestedDate.getDay();
+                const schedule = weeklySchedule[dayOfWeek];
+
+                if (schedule.isAvailable && schedule.startTime && schedule.endTime) {
+                    // Generate hourly slots
+                    const startHour = parseInt(schedule.startTime.split(':')[0]);
+                    const endHour = parseInt(schedule.endTime.split(':')[0]);
+
+                    // Get blocked times for this date
+                    const blockedTimes = blockedSlotsResult.rows
+                        .filter(b => new Date(b.blocked_date).toDateString() === requestedDate.toDateString())
+                        .map(b => ({
+                            start: b.start_time,
+                            end: b.end_time
+                        }));
+
+                    // Get booked times for this date
+                    const bookedTimes = bookedSlotsResult.rows
+                        .filter(b => new Date(b.preferred_date).toDateString() === requestedDate.toDateString())
+                        .map(b => b.preferred_time?.slice(0, 5));
+
+                    for (let hour = startHour; hour < endHour; hour++) {
+                        const timeStr = `${hour.toString().padStart(2, '0')}:00`;
+                        const displayTime = hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? '12:00 PM' : `${hour}:00 AM`;
+                        
+                        // Check if slot is blocked
+                        const isBlocked = blockedTimes.some(b => {
+                            const blockStart = parseInt(b.start?.split(':')[0] || 0);
+                            const blockEnd = parseInt(b.end?.split(':')[0] || 24);
+                            return hour >= blockStart && hour < blockEnd;
+                        });
+
+                        // Check if slot is booked
+                        const isBooked = bookedTimes.includes(timeStr);
+
+                        // Skip lunch hour (1 PM)
+                        const isLunch = hour === 13;
+
+                        let status = 'available';
+                        if (isBlocked) status = 'blocked';
+                        else if (isBooked) status = 'booked';
+                        else if (isLunch) status = 'lunch';
+
+                        timeSlots.push({
+                            time: displayTime,
+                            timeValue: timeStr,
+                            status: status
+                        });
+                    }
+                }
+            }
+
+            res.json({
+                weeklySchedule: Object.values(weeklySchedule),
+                blockedSlots: blockedSlotsResult.rows.map(b => ({
+                    date: b.blocked_date,
+                    startTime: b.start_time,
+                    endTime: b.end_time,
+                    reason: b.reason
+                })),
+                timeSlots: timeSlots
+            });
+        } catch (error) {
+            console.error('Get provider availability error:', error);
+            res.status(500).json({ message: 'Server error getting availability' });
+        }
+    });
+
+    // Save provider availability schedule (protected route)
+    Router.post('/availability', protect, async (req, res) => {
+        try {
+            const providerId = req.user.id;
+            const { schedule } = req.body;
+
+            if (!schedule || !Array.isArray(schedule)) {
+                return res.status(400).json({ message: 'Invalid schedule data' });
+            }
+
+            // Delete existing availability for this provider
+            await pool.query('DELETE FROM provider_availability WHERE provider_id = $1', [providerId]);
+
+            // Insert new availability
+            for (const slot of schedule) {
+                if (slot.enabled && slot.startTime && slot.endTime) {
+                    // Convert day name to day number (0 = Sunday, 6 = Saturday)
+                    const dayMap = {
+                        'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
+                        'Thursday': 4, 'Friday': 5, 'Saturday': 6
+                    };
+                    const dayOfWeek = dayMap[slot.day];
+
+                    // Convert 12-hour format to 24-hour format
+                    const convertTo24Hour = (timeStr) => {
+                        const [time, modifier] = timeStr.split(' ');
+                        let [hours, minutes] = time.split(':');
+                        hours = parseInt(hours);
+                        if (modifier === 'PM' && hours !== 12) hours += 12;
+                        if (modifier === 'AM' && hours === 12) hours = 0;
+                        return `${hours.toString().padStart(2, '0')}:${minutes}`;
+                    };
+
+                    const startTime24 = convertTo24Hour(slot.startTime);
+                    const endTime24 = convertTo24Hour(slot.endTime);
+
+                    await pool.query(`
+                        INSERT INTO provider_availability (provider_id, day_of_week, is_available, start_time, end_time)
+                        VALUES ($1, $2, $3, $4, $5)
+                    `, [providerId, dayOfWeek, true, startTime24, endTime24]);
+                }
+            }
+
+            res.json({ message: 'Availability saved successfully' });
+        } catch (error) {
+            console.error('Save availability error:', error);
+            res.status(500).json({ message: 'Server error saving availability' });
+        }
+    });
+
+    // Add blocked time slot (time off)
+    Router.post('/time-off', protect, async (req, res) => {
+        try {
+            const providerId = req.user.id;
+            const { date, startTime, endTime, reason } = req.body;
+
+            if (!date) {
+                return res.status(400).json({ message: 'Date is required' });
+            }
+
+            // Convert 12-hour format to 24-hour format if needed
+            const convertTo24Hour = (timeStr) => {
+                if (!timeStr) return null;
+                if (!timeStr.includes('AM') && !timeStr.includes('PM')) return timeStr;
+                const [time, modifier] = timeStr.split(' ');
+                let [hours, minutes] = time.split(':');
+                hours = parseInt(hours);
+                if (modifier === 'PM' && hours !== 12) hours += 12;
+                if (modifier === 'AM' && hours === 12) hours = 0;
+                return `${hours.toString().padStart(2, '0')}:${minutes}`;
+            };
+
+            const startTime24 = convertTo24Hour(startTime) || '00:00';
+            const endTime24 = convertTo24Hour(endTime) || '23:59';
+
+            // Use UPSERT to handle duplicate date entries
+            await pool.query(`
+                INSERT INTO provider_time_off (provider_id, time_off_date, start_time, end_time, reason)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (provider_id, time_off_date) 
+                DO UPDATE SET start_time = $3, end_time = $4, reason = $5
+            `, [providerId, date, startTime24, endTime24, reason || 'Personal']);
+
+            res.json({ message: 'Time off added successfully' });
+        } catch (error) {
+            console.error('Add time off error:', error);
+            res.status(500).json({ message: 'Server error adding time off' });
+        }
+    });
+
+    // Get provider's own availability (for provider dashboard)
+    Router.get('/my-availability', protect, async (req, res) => {
+        try {
+            const providerId = req.user.id;
+
+            // Get weekly schedule
+            const availabilityResult = await pool.query(`
+                SELECT day_of_week, is_available, start_time, end_time
+                FROM provider_availability
+                WHERE provider_id = $1
+                ORDER BY day_of_week
+            `, [providerId]);
+
+            // Get blocked slots
+            let blockedSlotsResult = { rows: [] };
+            try {
+                blockedSlotsResult = await pool.query(`
+                    SELECT id, time_off_date, start_time, end_time, reason
+                    FROM provider_time_off
+                    WHERE provider_id = $1
+                    AND time_off_date >= CURRENT_DATE
+                    ORDER BY time_off_date
+                `, [providerId]);
+            } catch (e) {
+                console.log('provider_time_off query error:', e.message);
+            }
+
+            // Format weekly schedule
+            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const schedule = dayNames.map((day, index) => {
+                const found = availabilityResult.rows.find(r => r.day_of_week === index);
+                if (found) {
+                    // Convert 24-hour to 12-hour format
+                    const convertTo12Hour = (timeStr) => {
+                        if (!timeStr) return '';
+                        const [hours, minutes] = timeStr.split(':');
+                        const hour = parseInt(hours);
+                        const ampm = hour >= 12 ? 'PM' : 'AM';
+                        const hour12 = hour % 12 || 12;
+                        return `${hour12.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+                    };
+                    return {
+                        day: day,
+                        enabled: found.is_available,
+                        startTime: convertTo12Hour(found.start_time),
+                        endTime: convertTo12Hour(found.end_time)
+                    };
+                }
+                return {
+                    day: day,
+                    enabled: false,
+                    startTime: '09:00 AM',
+                    endTime: '06:00 PM'
+                };
+            });
+
+            res.json({
+                schedule,
+                blockedSlots: blockedSlotsResult.rows.map(b => ({
+                    id: b.id,
+                    date: b.time_off_date,
+                    startTime: b.start_time,
+                    endTime: b.end_time,
+                    reason: b.reason
+                }))
+            });
+        } catch (error) {
+            console.error('Get my availability error:', error);
+            res.status(500).json({ message: 'Server error getting availability' });
+        }
+    });
+
+    // Delete time off
+    Router.delete('/time-off/:id', protect, async (req, res) => {
+        try {
+            const providerId = req.user.id;
+            const { id } = req.params;
+
+            await pool.query(`
+                DELETE FROM provider_time_off
+                WHERE id = $1 AND provider_id = $2
+            `, [id, providerId]);
+
+            res.json({ message: 'Time off deleted successfully' });
+        } catch (error) {
+            console.error('Delete time off error:', error);
+            res.status(500).json({ message: 'Server error deleting time off' });
+        }
+    });
+
 
     //logout
     Router.post('/logout', (req, res) => {
