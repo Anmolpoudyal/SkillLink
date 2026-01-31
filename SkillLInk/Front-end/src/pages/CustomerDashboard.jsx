@@ -407,6 +407,7 @@ const CustomerDashboard = () => {
   };
 
   const handleViewProfile = (provider) => {
+    console.log("Provider bio:", provider.bio, "Full provider:", provider);
     setSelectedProvider(provider);
     setProfileTab("about");
     setShowProfileView(true);
@@ -988,8 +989,7 @@ const CustomerDashboard = () => {
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">About Me</h3>
                     <p className="text-gray-600 leading-relaxed">
-                      Professional electrician with over {selectedProvider.experience} years of experience in residential and commercial electrical work. 
-                      Specialized in wiring, panel installations, and LED fixture setups. Committed to safety and quality workmanship.
+                      {selectedProvider.bio || `Professional ${selectedProvider.service?.toLowerCase() || 'service provider'} with ${selectedProvider.experience} years of experience. Committed to quality workmanship and customer satisfaction.`}
                     </p>
                   </div>
                 )}
