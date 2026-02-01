@@ -30,12 +30,24 @@ import {
 } from "lucide-react";
 
 const ProviderDashboard = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  // Check if user is a provider - redirect customers/admins away
+  useEffect(() => {
+    const userRole = localStorage.getItem("userRole");
+    if (userRole === "customer") {
+      navigate("/customer-dashboard");
+    } else if (userRole === "admin") {
+      navigate("/admin");
+    }
+  }, [navigate]);
+
   const [activeBookingTab, setActiveBookingTab] = useState("pending");
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [otpValues, setOtpValues] = useState(["", "", "", "", "", ""]);
   const otpInputRefs = useRef([]);
-  const { toast } = useToast();
 
   // Bookings state - fetched from API
   const [bookings, setBookings] = useState([]);
@@ -181,10 +193,12 @@ const ProviderDashboard = () => {
     handleAddTimeOff();
   };
 
-  const navigate = useNavigate();
-
   // Loading state
   const [loading, setLoading] = useState(true);
+
+  // Earnings state
+  const [totalEarnings, setTotalEarnings] = useState(0);
+  const [pendingEarnings, setPendingEarnings] = useState(0);
 
   // Provider info - will be populated from API
   const [provider, setProvider] = useState({
@@ -203,6 +217,10 @@ const ProviderDashboard = () => {
           name: user.full_name,
           initial: user.full_name.charAt(0).toUpperCase(),
         });
+
+        // Set earnings from profile
+        setTotalEarnings(parseFloat(user.total_earnings) || 0);
+        setPendingEarnings(parseFloat(user.pending_earnings) || 0);
 
         setProfileForm({
           fullName: user.full_name || "",
@@ -299,7 +317,7 @@ const ProviderDashboard = () => {
     newRequests: pendingRequests.length,
     inProgress: inProgressRequests.length,
     completed: completedRequests.length,
-    earnings: completedRequests.reduce((sum, b) => sum + (parseFloat(b.finalAmount) || 0), 0),
+    earnings: totalEarnings,
   };
 
   // Save schedule handler
@@ -448,40 +466,59 @@ const ProviderDashboard = () => {
       return;
     }
     
-    // Verify OTP matches the booking's verification code
-    if (otp !== selectedRequest?.verificationCode) {
-      toast({
-        title: "Invalid Code",
-        description: "The verification code doesn't match. Please ask the customer for the correct code.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     try {
-      await api.updateBookingStatus(selectedRequest.id, {
-        status: 'completed'
-      });
+      // First try to verify payment completion OTP
+      const paymentResult = await api.payments.verifyCompletionOtp(selectedRequest.id, otp);
       
-      // Refresh bookings
-      const response = await api.getProviderBookings();
-      setBookings(response.bookings || []);
-      
-      toast({
-        title: "Job Completed!",
-        description: "The booking has been marked as completed.",
-      });
-      
-      setShowOTPModal(false);
-      setSelectedRequest(null);
-      setOtpValues(["", "", "", "", "", ""]);
+      if (paymentResult.success) {
+        // Payment OTP verified, now complete the booking
+        await api.updateBookingStatus(selectedRequest.id, {
+          status: 'completed'
+        });
+        
+        // Refresh bookings
+        const response = await api.getProviderBookings();
+        setBookings(response.bookings || []);
+        
+        // Update earnings from payment result
+        if (paymentResult.earnings) {
+          setTotalEarnings(prev => prev + paymentResult.earnings);
+          setPendingEarnings(prev => prev + paymentResult.earnings);
+        }
+        
+        // Also refresh profile to get latest earnings
+        const profileResponse = await api.getProfile();
+        if (profileResponse.user) {
+          setTotalEarnings(parseFloat(profileResponse.user.total_earnings) || 0);
+          setPendingEarnings(parseFloat(profileResponse.user.pending_earnings) || 0);
+        }
+        
+        toast({
+          title: "Job Completed!",
+          description: `Work completed! You earned NPR ${paymentResult.earnings?.toLocaleString() || '0'}`,
+        });
+        
+        setShowOTPModal(false);
+        setSelectedRequest(null);
+        setOtpValues(["", "", "", "", "", ""]);
+      }
     } catch (error) {
       console.error("Error completing booking:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to complete booking",
-        variant: "destructive",
-      });
+      
+      // Check if it's an OTP error
+      if (error.message.includes("Invalid") || error.message.includes("OTP")) {
+        toast({
+          title: "Invalid Code",
+          description: "The completion code doesn't match. Please ask the customer for the correct code.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to complete booking",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -655,8 +692,9 @@ const ProviderDashboard = () => {
           {/* Verification Code - for accepted bookings */}
           {isInProgress && request.verificationCode && (
             <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-4">
-              <p className="text-sm text-gray-600 mb-1">Verification Code (Customer will provide):</p>
+              <p className="text-sm text-gray-600 mb-1">Booking Verification Code:</p>
               <p className="text-xl font-mono font-bold text-blue-600 tracking-wider">{request.verificationCode}</p>
+              <p className="text-xs text-gray-500 mt-2">Show this to customer to verify your identity when you arrive.</p>
             </div>
           )}
 
@@ -681,15 +719,31 @@ const ProviderDashboard = () => {
             </div>
           )}
 
-          {/* OTP Button - for in progress */}
+          {/* Complete Work Button - for in progress */}
           {isInProgress && (
-            <Button
-              onClick={() => handleEnterOTP(request)}
-              className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white py-3"
-            >
-              <Check className="w-4 h-4 mr-2" />
-              Enter OTP to Complete
-            </Button>
+            <>
+              {/* Show payment status */}
+              {(request.paymentStatus === 'completed' || request.paymentStatus === 'paid') ? (
+                <Button
+                  onClick={() => handleEnterOTP(request)}
+                  className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white py-3"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Enter Completion Code
+                </Button>
+              ) : (
+                <div className="space-y-2">
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-700 text-center">
+                      ⏳ Waiting for customer to complete payment
+                    </p>
+                  </div>
+                  <p className="text-xs text-gray-500 text-center">
+                    The customer will receive a completion code after payment. They'll share it with you once you complete the work.
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -1111,7 +1165,7 @@ const ProviderDashboard = () => {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-6 h-6 text-teal-500" />
-                  <h3 className="text-xl font-semibold text-gray-800">Complete Service</h3>
+                  <h3 className="text-xl font-semibold text-gray-800">Complete Work</h3>
                 </div>
                 <button
                   onClick={handleCloseModal}
@@ -1121,7 +1175,7 @@ const ProviderDashboard = () => {
                 </button>
               </div>
               <p className="text-sm text-gray-500">
-                Enter the 6-digit verification code from the customer to complete the job and receive payment.
+                Enter the 6-digit completion code from the customer to finalize the work and receive your payment.
               </p>
             </div>
 
@@ -1130,7 +1184,7 @@ const ProviderDashboard = () => {
               <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-500">Customer</span>
-                  <span className="text-sm font-medium text-gray-800">{selectedRequest.customerName}</span>
+                  <span className="text-sm font-medium text-gray-800">{selectedRequest.customer?.name || selectedRequest.customerName}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-500">Service</span>
@@ -1139,11 +1193,18 @@ const ProviderDashboard = () => {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Payment</span>
+                  <span className="text-sm text-gray-500">Amount</span>
                   <span className="text-sm font-bold text-green-500">
-                    NPR {selectedRequest.amount?.toLocaleString()}
+                    NPR {parseFloat(selectedRequest.finalAmount || selectedRequest.estimatedAmount || selectedRequest.amount || 0).toLocaleString()}
                   </span>
                 </div>
+              </div>
+              
+              {/* Info box about the code */}
+              <div className="mt-3 bg-blue-50 border border-blue-100 rounded-lg p-3">
+                <p className="text-xs text-blue-700">
+                  💡 The customer received this code after making the payment. They should only share it after you've completed the work.
+                </p>
               </div>
             </div>
 

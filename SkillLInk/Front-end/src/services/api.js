@@ -424,6 +424,30 @@ const api = {
       
       return handleResponse(response);
     },
+
+    // Get completion OTP for customer
+    getCompletionOtp: async (bookingId) => {
+      const response = await fetch(`${API_BASE_URL}/api/payments/completion-otp/${bookingId}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      return handleResponse(response);
+    },
+
+    // Verify completion OTP (provider)
+    verifyCompletionOtp: async (bookingId, otp) => {
+      const response = await fetch(`${API_BASE_URL}/api/payments/verify-completion-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ bookingId, otp }),
+      });
+      
+      return handleResponse(response);
+    },
   },
 };
 

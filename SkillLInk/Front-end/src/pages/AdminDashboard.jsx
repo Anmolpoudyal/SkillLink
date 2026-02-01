@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.jsx";
 import { useToast } from "../hooks/useToast.js";
 import api from "../services/api.js";
-import { Shield, Users, UserCheck, UserX, Search, Eye, Download, Ban, CheckCircle } from "lucide-react";
+import { Shield, Users, UserCheck, UserX, Search, Eye, Download, Ban, CheckCircle, DollarSign, CreditCard } from "lucide-react";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -156,40 +156,92 @@ const AdminDashboard = () => {
 
         {/* Statistics Cards */}
         {stats && (
-          <div className="grid md:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Customers</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.total_customers}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Providers</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.total_providers}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Active Users</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">{stats.active_users}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Suspended Users</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600">{stats.suspended_users}</div>
-              </CardContent>
-            </Card>
-          </div>
+          <>
+            {/* User Stats */}
+            <div className="grid md:grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Customers</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.total_customers}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Providers</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.total_providers}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Active Users</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">{stats.active_users}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Suspended Users</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-600">{stats.suspended_users}</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Transaction Stats */}
+            <div className="grid md:grid-cols-4 gap-4">
+              <Card className="border-primary/20 bg-primary/5">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-primary" />
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Gross Transactions</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-primary">NPR {Number(stats.gross_transactions || 0).toLocaleString()}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Total payment volume</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Transactions</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.total_transactions || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1">All time payments</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Completed Payments</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">{stats.completed_transactions || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1">NPR {Number(stats.completed_amount || 0).toLocaleString()}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Pending Payments</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-yellow-600">{stats.pending_transactions || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Awaiting completion</p>
+                </CardContent>
+              </Card>
+            </div>
+          </>
         )}
 
         {/* Filters and Search */}

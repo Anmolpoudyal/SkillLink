@@ -34,6 +34,19 @@ import {
 } from "lucide-react";
 
 const CustomerDashboard = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  // Check if user is a customer - redirect providers/admins away
+  useEffect(() => {
+    const userRole = localStorage.getItem("userRole");
+    if (userRole === "service_provider") {
+      navigate("/provider-dashboard");
+    } else if (userRole === "admin") {
+      navigate("/admin");
+    }
+  }, [navigate]);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLocation, setSelectedLocation] = useState("All Locations");
   const [selectedService, setSelectedService] = useState("All Services");
@@ -80,23 +93,40 @@ const CustomerDashboard = () => {
     setBookingsLoading(true);
     try {
       const response = await api.getCustomerBookings();
-      const bookings = response.bookings.map(b => ({
-        id: b.id,
-        provider: b.provider,
-        description: b.problemDescription,
-        date: `${new Date(b.preferredDate).toLocaleDateString()} at ${b.preferredTime}`,
-        location: b.serviceAddress,
-        status: b.status === 'in_progress' ? 'active' : 
-                b.status === 'completed' ? 'done' : 
-                b.status === 'accepted' ? 'accepted' : b.status,
-        payment: b.finalAmount || b.estimatedAmount || 0,
-        verificationCode: b.verificationCode,
-        paymentStatus: b.paymentStatus || 'pending',
-        estimatedAmount: b.estimatedAmount,
-        finalAmount: b.finalAmount,
-        problemDescription: b.problemDescription,
+      const bookingsWithOtp = await Promise.all(response.bookings.map(async (b) => {
+        let completionOtp = null;
+        
+        // Fetch completion OTP for paid/completed bookings
+        if (b.paymentStatus === 'paid' || b.paymentStatus === 'completed') {
+          try {
+            const otpResponse = await api.payments.getCompletionOtp(b.id);
+            console.log('OTP response for booking', b.id, ':', otpResponse);
+            completionOtp = otpResponse.completionOtp;
+          } catch (err) {
+            console.log('No completion OTP for booking:', b.id, err.message);
+          }
+        }
+        
+        return {
+          id: b.id,
+          provider: b.provider,
+          description: b.problemDescription,
+          date: `${new Date(b.preferredDate).toLocaleDateString()} at ${b.preferredTime}`,
+          location: b.serviceAddress,
+          status: b.status === 'in_progress' ? 'active' : 
+                  b.status === 'completed' ? 'done' : 
+                  b.status === 'accepted' ? 'accepted' : b.status,
+          payment: b.finalAmount || b.estimatedAmount || 0,
+          verificationCode: b.verificationCode,
+          paymentStatus: b.paymentStatus || 'pending',
+          estimatedAmount: b.estimatedAmount,
+          finalAmount: b.finalAmount,
+          problemDescription: b.problemDescription,
+          completionOtp: completionOtp,
+          otpVerified: b.otpVerified || false,
+        };
       }));
-      setMyBookings(bookings);
+      setMyBookings(bookingsWithOtp);
     } catch (error) {
       console.error("Error fetching bookings:", error);
       toast({
@@ -239,9 +269,6 @@ const CustomerDashboard = () => {
     });
     setShowSlotsModal(false);
   };
-
-  const navigate = useNavigate();
-  const { toast } = useToast();
 
   // Loading state
   const [loading, setLoading] = useState(true);
@@ -802,9 +829,10 @@ const CustomerDashboard = () => {
               <div className="flex gap-1">
                 {[
                   { id: "all", label: "All" },
-                  { id: "pending", label: "Pending" },
-                  { id: "active", label: "Active", count: myBookings.filter(b => b.status === "active").length },
-                  { id: "done", label: "Done" },
+                  { id: "pending", label: "Pending", count: myBookings.filter(b => b.status === "pending").length },
+                  { id: "accepted", label: "Accepted", count: myBookings.filter(b => b.status === "accepted").length },
+                  { id: "active", label: "In Progress", count: myBookings.filter(b => b.status === "active").length },
+                  { id: "done", label: "Completed" },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -816,7 +844,7 @@ const CustomerDashboard = () => {
                       }`}
                   >
                     {tab.label}
-                    {tab.count && (
+                    {tab.count > 0 && (
                       <span className="bg-teal-500 text-white text-xs px-2 py-0.5 rounded-full">
                         {tab.count}
                       </span>
@@ -879,7 +907,7 @@ const CustomerDashboard = () => {
                           </>
                         )}
                         {/* Payment Status Badge */}
-                        {booking.paymentStatus === "paid" && (
+                        {(booking.paymentStatus === "paid" || booking.paymentStatus === "completed") && (
                           <span className="px-3 py-1 bg-green-100 text-green-600 text-xs font-medium rounded-full ml-2">
                             Paid
                           </span>
@@ -905,7 +933,7 @@ const CustomerDashboard = () => {
                       <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
                         <div className="flex items-center gap-2 mb-4">
                           <CheckCircle className="w-5 h-5 text-teal-500" />
-                          <span className="font-medium text-gray-900">Verification Code</span>
+                          <span className="font-medium text-gray-900">Provider Verification Code</span>
                         </div>
                         
                         {/* Code Display */}
@@ -929,24 +957,15 @@ const CustomerDashboard = () => {
                           <span className="text-sm">Copy Code</span>
                         </button>
 
-                        {/* Share Info */}
+                        {/* Info */}
                         <div className="text-center mt-3">
                           <p className="text-sm text-gray-500">
-                            Share with <span className="font-medium text-gray-700">{booking.provider.name}</span>
-                          </p>
-                          <p className="text-sm text-teal-600 font-medium">Payment: NPR {booking.payment}</p>
-                        </div>
-
-                        {/* Warning */}
-                        <div className="mt-4 p-3 bg-amber-50 rounded-lg flex items-start gap-2">
-                          <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                          <p className="text-xs text-amber-700">
-                            Only share this code when the service is completed to your satisfaction. Payment will be released once the provider enters this code.
+                            Ask <span className="font-medium text-gray-700">{booking.provider.name}</span> to show this code to verify their identity.
                           </p>
                         </div>
 
                         {/* Pay Now Button for Active Bookings */}
-                        {booking.paymentStatus !== "paid" && (
+                        {booking.paymentStatus !== "paid" && booking.paymentStatus !== "completed" && (
                           <Button
                             onClick={() => handlePayNow(booking)}
                             className="w-full mt-4 bg-purple-600 hover:bg-purple-700 text-white"
@@ -958,8 +977,69 @@ const CustomerDashboard = () => {
                       </div>
                     )}
 
+                    {/* Completion OTP for Paid Bookings */}
+                    {(booking.paymentStatus === "paid" || booking.paymentStatus === "completed") && booking.completionOtp && !booking.otpVerified && (booking.status === "active" || booking.status === "accepted" || booking.status === "pending") && (
+                      <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                          <span className="font-medium text-gray-900">Work Completion Code</span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-4">
+                          Share this code with the provider <strong>only after</strong> the work is completed to your satisfaction.
+                        </p>
+                        
+                        {/* Completion OTP Display */}
+                        <div className="flex items-center justify-center gap-2 mb-4">
+                          {booking.completionOtp.split('').map((digit, index) => (
+                            <div
+                              key={index}
+                              className="w-10 h-12 bg-white border-2 border-green-300 rounded-lg flex items-center justify-center text-xl font-bold text-green-700"
+                            >
+                              {digit}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Copy Button */}
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(booking.completionOtp);
+                            toast({
+                              title: "Copied!",
+                              description: "Completion code copied to clipboard",
+                            });
+                          }}
+                          className="w-full flex items-center justify-center gap-2 py-2 text-green-700 hover:text-green-800 bg-green-100 rounded-lg"
+                        >
+                          <Copy className="w-4 h-4" />
+                          <span className="text-sm font-medium">Copy Completion Code</span>
+                        </button>
+
+                        {/* Warning */}
+                        <div className="mt-4 p-3 bg-amber-50 rounded-lg flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-amber-700">
+                            <strong>Important:</strong> Only share this code after the work is fully completed. The provider will use this to finalize the job and receive payment.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* OTP Already Verified */}
+                    {(booking.paymentStatus === "paid" || booking.paymentStatus === "completed") && booking.otpVerified && (
+                      <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                          <span className="font-medium text-green-700">Work Completed & Payment Released</span>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">
+                          The completion code has been verified and payment has been released to the provider.
+                        </p>
+                      </div>
+                    )}
+
                     {/* Pay Now for Accepted Bookings */}
-                    {booking.status === "accepted" && booking.paymentStatus !== "paid" && (
+                    {booking.status === "accepted" && booking.paymentStatus !== "paid" && booking.paymentStatus !== "completed" && (
                       <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
                         <div className="flex items-center justify-between mb-3">
                           <div>
@@ -982,7 +1062,7 @@ const CustomerDashboard = () => {
                     {booking.status === "done" && (
                       <div className="mt-4">
                         {/* Pay Now if not paid */}
-                        {booking.paymentStatus !== "paid" && (
+                        {booking.paymentStatus !== "paid" && booking.paymentStatus !== "completed" && (
                           <div className="mb-4 p-4 bg-amber-50 rounded-lg border border-amber-100">
                             <div className="flex items-center justify-between mb-3">
                               <div>

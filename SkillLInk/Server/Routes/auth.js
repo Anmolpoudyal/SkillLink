@@ -880,15 +880,20 @@ Router.post('/login', async (req, res) => {
             const providerId = req.user.id;
             const { status } = req.query;
 
+            console.log('Fetching bookings for provider:', providerId, 'User:', req.user.full_name);
+
             let query = `
                 SELECT 
                     b.*,
                     u.full_name as customer_name,
                     u.phone as customer_phone,
                     u.email as customer_email,
-                    u.profile_photo as customer_photo
+                    u.profile_photo as customer_photo,
+                    p.status as payment_status,
+                    p.otp_verified as otp_verified
                 FROM bookings b
                 JOIN users u ON b.customer_id = u.id
+                LEFT JOIN payments p ON b.id = p.booking_id
                 WHERE b.provider_id = $1
             `;
             const params = [providerId];
@@ -927,7 +932,9 @@ Router.post('/login', async (req, res) => {
                 createdAt: b.created_at,
                 acceptedAt: b.accepted_at,
                 startedAt: b.started_at,
-                completedAt: b.completed_at
+                completedAt: b.completed_at,
+                paymentStatus: b.payment_status || 'pending',
+                otpVerified: b.otp_verified || false
             }));
 
             res.json({ bookings });
@@ -943,6 +950,8 @@ Router.post('/login', async (req, res) => {
             const customerId = req.user.id;
             const { status } = req.query;
 
+            console.log('Fetching bookings for customer:', customerId, 'User:', req.user.full_name);
+
             let query = `
                 SELECT 
                     b.*,
@@ -950,11 +959,14 @@ Router.post('/login', async (req, res) => {
                     u.phone as provider_phone,
                     u.email as provider_email,
                     u.profile_photo as provider_photo,
-                    sc.name as service_name
+                    sc.name as service_name,
+                    p.status as payment_status,
+                    p.otp_verified as otp_verified
                 FROM bookings b
                 JOIN users u ON b.provider_id = u.id
                 LEFT JOIN service_providers sp ON b.provider_id = sp.id
                 LEFT JOIN service_categories sc ON sp.service_category_id = sc.id
+                LEFT JOIN payments p ON b.id = p.booking_id
                 WHERE b.customer_id = $1
             `;
             const params = [customerId];
@@ -967,6 +979,8 @@ Router.post('/login', async (req, res) => {
             query += ` ORDER BY b.created_at DESC`;
 
             const result = await pool.query(query, params);
+            
+            console.log('Found', result.rows.length, 'bookings for customer:', customerId);
 
             const bookings = result.rows.map(b => ({
                 id: b.id,
@@ -990,7 +1004,9 @@ Router.post('/login', async (req, res) => {
                 providerNotes: b.provider_notes,
                 createdAt: b.created_at,
                 acceptedAt: b.accepted_at,
-                completedAt: b.completed_at
+                completedAt: b.completed_at,
+                paymentStatus: b.payment_status || 'pending',
+                otpVerified: b.otp_verified || false
             }));
 
             res.json({ bookings });
@@ -1086,13 +1102,20 @@ Router.post('/login', async (req, res) => {
             const { id } = req.params;
             const { status, rejectionReason, providerNotes, estimatedAmount } = req.body;
 
+            console.log('Update booking status:', { bookingId: id, providerId: userId, status });
+
             // Verify the booking belongs to this provider
             const bookingCheck = await pool.query(
                 'SELECT * FROM bookings WHERE id = $1 AND provider_id = $2',
                 [id, userId]
             );
 
+            console.log('Booking check result:', bookingCheck.rows.length, 'bookings found');
+
             if (bookingCheck.rows.length === 0) {
+                // Debug: check if booking exists at all
+                const anyBooking = await pool.query('SELECT id, provider_id FROM bookings WHERE id = $1', [id]);
+                console.log('Booking exists?', anyBooking.rows.length > 0 ? 'Yes, provider_id=' + anyBooking.rows[0]?.provider_id : 'No');
                 return res.status(404).json({ message: 'Booking not found' });
             }
 

@@ -170,19 +170,23 @@ Router.post('/verify', protect, async (req, res) => {
 
         // Check if payment was successful
         if (verifyResponse.status === 'Completed') {
-            // Update payment status in database
+            // Generate 6-digit completion OTP
+            const completionOtp = Math.floor(100000 + Math.random() * 900000).toString();
+            
+            // Update payment status in database with completion OTP
             await pool.query(
                 `UPDATE payments 
                  SET status = 'completed', 
                      khalti_transaction_id = $1,
                      khalti_fee = $2,
+                     completion_otp = $3,
                      paid_at = NOW(),
                      updated_at = NOW()
-                 WHERE khalti_pidx = $3`,
-                [verifyResponse.transaction_id, verifyResponse.fee_breakdown?.total_fee || 0, pidx]
+                 WHERE khalti_pidx = $4`,
+                [verifyResponse.transaction_id, verifyResponse.fee_breakdown?.total_fee || 0, completionOtp, pidx]
             );
 
-            // Update booking payment status
+            // Update booking payment status (but NOT completed yet - waiting for OTP verification)
             await pool.query(
                 `UPDATE bookings 
                  SET payment_status = 'paid', 
@@ -192,15 +196,7 @@ Router.post('/verify', protect, async (req, res) => {
                 [payment.booking_id]
             );
 
-            // Update provider's earnings (platform takes 10% commission)
-            const providerEarning = payment.amount * 0.9;
-            await pool.query(
-                `UPDATE service_providers 
-                 SET total_earnings = total_earnings + $1,
-                     pending_earnings = pending_earnings + $1
-                 WHERE id = $2`,
-                [providerEarning, payment.provider_id]
-            );
+            // Note: Provider earnings will be updated only after OTP verification
 
             res.json({ 
                 success: true,
@@ -208,7 +204,9 @@ Router.post('/verify', protect, async (req, res) => {
                 status: 'completed',
                 transactionId: verifyResponse.transaction_id,
                 amount: verifyResponse.total_amount / 100, // Convert back from paisa
-                paidAt: new Date()
+                paidAt: new Date(),
+                completionOtp: completionOtp, // Send OTP to customer
+                bookingId: payment.booking_id
             });
         } else if (verifyResponse.status === 'Pending') {
             res.json({
@@ -227,10 +225,11 @@ Router.post('/verify', protect, async (req, res) => {
                 status: 'expired'
             });
         } else {
+            const statusStr = verifyResponse.status ? String(verifyResponse.status).toLowerCase() : 'unknown';
             res.json({
                 success: false,
-                message: `Payment status: ${verifyResponse.status}`,
-                status: verifyResponse.status.toLowerCase()
+                message: `Payment status: ${verifyResponse.status || 'Unknown'}`,
+                status: statusStr
             });
         }
     } catch (error) {
@@ -264,16 +263,20 @@ Router.get('/verify', protect, async (req, res) => {
         const verifyResponse = await khaltiRequest('/epayment/lookup/', { pidx });
 
         if (verifyResponse.status === 'Completed') {
-            // Update payment status
+            // Generate 6-digit completion OTP
+            const completionOtp = Math.floor(100000 + Math.random() * 900000).toString();
+            
+            // Update payment status with completion OTP
             await pool.query(
                 `UPDATE payments 
                  SET status = 'completed', 
                      khalti_transaction_id = $1,
                      khalti_fee = $2,
+                     completion_otp = $3,
                      paid_at = NOW(),
                      updated_at = NOW()
-                 WHERE khalti_pidx = $3`,
-                [verifyResponse.transaction_id, verifyResponse.fee_breakdown?.total_fee || 0, pidx]
+                 WHERE khalti_pidx = $4`,
+                [verifyResponse.transaction_id, verifyResponse.fee_breakdown?.total_fee || 0, completionOtp, pidx]
             );
 
             // Update booking payment status
@@ -285,24 +288,21 @@ Router.get('/verify', protect, async (req, res) => {
                  WHERE id = $1`,
                 [payment.booking_id]
             );
-
-            // Update provider's earnings
-            const providerEarning = payment.amount * 0.9;
-            await pool.query(
-                `UPDATE service_providers 
-                 SET total_earnings = total_earnings + $1,
-                     pending_earnings = pending_earnings + $1
-                 WHERE id = $2`,
-                [providerEarning, payment.provider_id]
-            );
         }
+
+        // Get the updated payment with OTP
+        const updatedPayment = await pool.query(
+            'SELECT completion_otp FROM payments WHERE khalti_pidx = $1',
+            [pidx]
+        );
 
         res.json({
             success: verifyResponse.status === 'Completed',
             status: verifyResponse.status?.toLowerCase() || 'unknown',
             bookingId: payment.booking_id,
             amount: payment.amount,
-            transactionId: verifyResponse.transaction_id
+            transactionId: verifyResponse.transaction_id,
+            completionOtp: updatedPayment.rows[0]?.completion_otp || null
         });
     } catch (error) {
         console.error('Verify payment (GET) error:', error);
@@ -337,6 +337,125 @@ Router.get('/status/:pidx', protect, async (req, res) => {
     } catch (error) {
         console.error('Get payment status error:', error);
         res.status(500).json({ message: 'Error getting payment status' });
+    }
+});
+
+// Verify completion OTP (Provider enters OTP to complete the work)
+Router.post('/verify-completion-otp', protect, async (req, res) => {
+    try {
+        const providerId = req.user.id;
+        const { bookingId, otp } = req.body;
+
+        if (!bookingId || !otp) {
+            return res.status(400).json({ message: 'Booking ID and OTP are required' });
+        }
+
+        // Get payment for this booking
+        const paymentResult = await pool.query(
+            `SELECT p.*, b.status as booking_status 
+             FROM payments p
+             JOIN bookings b ON p.booking_id = b.id
+             WHERE p.booking_id = $1 AND p.provider_id = $2 AND p.status = 'completed'`,
+            [bookingId, providerId]
+        );
+
+        if (paymentResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Payment not found for this booking' });
+        }
+
+        const payment = paymentResult.rows[0];
+
+        // Check if already finalized
+        if (payment.otp_verified) {
+            return res.status(400).json({ message: 'This booking has already been finalized' });
+        }
+
+        // Verify the OTP
+        if (payment.completion_otp !== otp) {
+            return res.status(400).json({ message: 'Invalid OTP. Please check and try again.' });
+        }
+
+        // OTP is correct - finalize the transaction
+        // Update payment as OTP verified
+        await pool.query(
+            `UPDATE payments 
+             SET otp_verified = true,
+                 otp_verified_at = NOW(),
+                 updated_at = NOW()
+             WHERE id = $1`,
+            [payment.id]
+        );
+
+        // Update booking status to completed
+        await pool.query(
+            `UPDATE bookings 
+             SET status = 'completed',
+                 payment_status = 'finalized',
+                 completed_at = NOW(),
+                 updated_at = NOW()
+             WHERE id = $1`,
+            [bookingId]
+        );
+
+        // Provider receives 100% of the payment
+        const providerEarning = payment.amount;
+        await pool.query(
+            `UPDATE service_providers 
+             SET total_earnings = total_earnings + $1,
+                 pending_earnings = pending_earnings + $1,
+                 total_completed_jobs = total_completed_jobs + 1
+             WHERE id = $2`,
+            [providerEarning, providerId]
+        );
+
+        res.json({
+            success: true,
+            message: 'Work completed and payment finalized successfully!',
+            amount: payment.amount,
+            earnings: providerEarning
+        });
+    } catch (error) {
+        console.error('Verify completion OTP error:', error);
+        res.status(500).json({ message: 'Error verifying OTP' });
+    }
+});
+
+// Get completion OTP for customer (to show after payment)
+Router.get('/completion-otp/:bookingId', protect, async (req, res) => {
+    try {
+        const customerId = req.user.id;
+        const { bookingId } = req.params;
+
+        const result = await pool.query(
+            `SELECT completion_otp, otp_verified, status 
+             FROM payments 
+             WHERE booking_id = $1 AND customer_id = $2 AND status = 'completed'
+             ORDER BY created_at DESC LIMIT 1`,
+            [bookingId, customerId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'No completed payment found' });
+        }
+
+        const payment = result.rows[0];
+
+        if (payment.otp_verified) {
+            return res.json({
+                completionOtp: null,
+                message: 'Work has been completed and verified',
+                verified: true
+            });
+        }
+
+        res.json({
+            completionOtp: payment.completion_otp,
+            verified: false,
+            message: 'Share this OTP with your service provider after work is completed'
+        });
+    } catch (error) {
+        console.error('Get completion OTP error:', error);
+        res.status(500).json({ message: 'Error getting completion OTP' });
     }
 });
 
