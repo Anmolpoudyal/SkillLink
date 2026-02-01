@@ -167,7 +167,7 @@ Router.patch('/users/:userId/status', async (req, res) => {
 // Get statistics
 Router.get('/stats', async (req, res) => {
     try {
-        const stats = await pool.query(`
+        const userStats = await pool.query(`
             SELECT 
                 COUNT(*) FILTER (WHERE role = 'customer') as total_customers,
                 COUNT(*) FILTER (WHERE role = 'service_provider') as total_providers,
@@ -176,7 +176,23 @@ Router.get('/stats', async (req, res) => {
             FROM users
         `);
         
-        res.json({ stats: stats.rows[0] });
+        // Get gross transaction stats
+        const transactionStats = await pool.query(`
+            SELECT 
+                COALESCE(SUM(amount), 0) as gross_transactions,
+                COUNT(*) as total_transactions,
+                COUNT(*) FILTER (WHERE status = 'completed') as completed_transactions,
+                COUNT(*) FILTER (WHERE status = 'pending') as pending_transactions,
+                COALESCE(SUM(amount) FILTER (WHERE status = 'completed'), 0) as completed_amount
+            FROM payments
+        `);
+        
+        const stats = {
+            ...userStats.rows[0],
+            ...transactionStats.rows[0]
+        };
+        
+        res.json({ stats });
     } catch (error) {
         console.error('Get stats error:', error);
         res.status(500).json({ message: 'Error fetching statistics' });
