@@ -342,6 +342,89 @@ const api = {
       return handleResponse(response);
     },
   },
+
+  // ============================================
+  // KHALTI PAYMENT API CALLS
+  // ============================================
+
+  payments: {
+    // Initiate Khalti payment
+    initiatePayment: async (bookingId, amount, returnUrl = null) => {
+      const response = await fetch(`${API_BASE_URL}/api/payments/initiate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          bookingId, 
+          amount,
+          returnUrl: returnUrl || `${window.location.origin}/payment/verify`,
+          websiteUrl: window.location.origin
+        }),
+      });
+      
+      return handleResponse(response);
+    },
+
+    // Verify payment after Khalti redirect
+    verifyPayment: async (pidx) => {
+      const response = await fetch(`${API_BASE_URL}/api/payments/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ pidx }),
+      });
+      
+      return handleResponse(response);
+    },
+
+    // Get payment status by pidx
+    getPaymentStatus: async (pidx) => {
+      const response = await fetch(`${API_BASE_URL}/api/payments/status/${pidx}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      return handleResponse(response);
+    },
+
+    // Get payment details for a booking
+    getPaymentByBooking: async (bookingId) => {
+      const response = await fetch(`${API_BASE_URL}/api/payments/booking/${bookingId}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      return handleResponse(response);
+    },
+
+    // Get payment history
+    getPaymentHistory: async () => {
+      const response = await fetch(`${API_BASE_URL}/api/payments/history`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      return handleResponse(response);
+    },
+
+    // Request refund
+    requestRefund: async (bookingId, reason) => {
+      const response = await fetch(`${API_BASE_URL}/api/payments/refund`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ bookingId, reason }),
+      });
+      
+      return handleResponse(response);
+    },
+  },
 };
 
 export default api;

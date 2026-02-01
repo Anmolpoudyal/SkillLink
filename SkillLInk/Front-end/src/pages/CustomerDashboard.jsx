@@ -4,6 +4,7 @@ import { Card, CardContent } from "../components/ui/Card";
 import { Button } from "../components/ui/button";
 import { useToast } from "../hooks/useToast.js";
 import api from "../services/api.js";
+import PaymentModal from "../components/PaymentModal.jsx";
 import {
   Search,
   MapPin,
@@ -28,6 +29,7 @@ import {
   Flag,
   Edit,
   Camera,
+  CreditCard,
   User,
 } from "lucide-react";
 
@@ -66,38 +68,79 @@ const CustomerDashboard = () => {
   // My Bookings state
   const [showMyBookings, setShowMyBookings] = useState(false);
   const [bookingsTab, setBookingsTab] = useState("all");
+  const [myBookings, setMyBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
 
-  // Sample bookings data
-  const myBookings = [
-    {
-      id: 1,
-      provider: { name: "Ram Sharma", initial: "R", service: "Electrician" },
-      description: "Ceiling fan not working",
-      date: "2024-01-15 at 10:00 AM",
-      location: "Kathmandu",
-      status: "pending",
-      payment: 1200,
-    },
-    {
-      id: 2,
-      provider: { name: "Sita Thapa", initial: "S", service: "Plumber" },
-      description: "Kitchen sink leaking",
-      date: "2024-01-12 14:00",
-      location: "Lalitpur",
-      status: "active",
-      payment: 1500,
-      verificationCode: "582914",
-    },
-    {
-      id: 3,
-      provider: { name: "Hari Bahadur", initial: "H", service: "Carpenter" },
-      description: "Door repair needed",
-      date: "2024-01-05 at 9:00 AM",
-      location: "Kathmandu",
-      status: "done",
-      payment: 2000,
-    },
-  ];
+  // Payment modal state
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentBooking, setPaymentBooking] = useState(null);
+
+  // Fetch customer bookings
+  const fetchMyBookings = async () => {
+    setBookingsLoading(true);
+    try {
+      const response = await api.getCustomerBookings();
+      const bookings = response.bookings.map(b => ({
+        id: b.id,
+        provider: b.provider,
+        description: b.problemDescription,
+        date: `${new Date(b.preferredDate).toLocaleDateString()} at ${b.preferredTime}`,
+        location: b.serviceAddress,
+        status: b.status === 'in_progress' ? 'active' : 
+                b.status === 'completed' ? 'done' : 
+                b.status === 'accepted' ? 'accepted' : b.status,
+        payment: b.finalAmount || b.estimatedAmount || 0,
+        verificationCode: b.verificationCode,
+        paymentStatus: b.paymentStatus || 'pending',
+        estimatedAmount: b.estimatedAmount,
+        finalAmount: b.finalAmount,
+        problemDescription: b.problemDescription,
+      }));
+      setMyBookings(bookings);
+    } catch (error) {
+      console.error("Error fetching bookings:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load bookings",
+        variant: "destructive",
+      });
+    } finally {
+      setBookingsLoading(false);
+    }
+  };
+
+  // Fetch bookings when My Bookings is opened
+  useEffect(() => {
+    if (showMyBookings) {
+      fetchMyBookings();
+    }
+  }, [showMyBookings]);
+
+  // Handle opening payment modal
+  const handlePayNow = (booking) => {
+    setPaymentBooking(booking);
+    setShowPaymentModal(true);
+  };
+
+  // Handle payment success
+  const handlePaymentSuccess = () => {
+    setShowPaymentModal(false);
+    setPaymentBooking(null);
+    fetchMyBookings(); // Refresh bookings
+    toast({
+      title: "Payment Successful",
+      description: "Your payment has been processed successfully!",
+    });
+  };
+
+  // Handle payment error
+  const handlePaymentError = (error) => {
+    toast({
+      title: "Payment Failed",
+      description: error.message || "Failed to process payment. Please try again.",
+      variant: "destructive",
+    });
+  };
 
   // Rating modal state
   const [showRatingModal, setShowRatingModal] = useState(false);
@@ -811,6 +854,14 @@ const CustomerDashboard = () => {
                             </span>
                           </>
                         )}
+                        {booking.status === "accepted" && (
+                          <>
+                            <CheckCircle className="w-4 h-4 text-blue-500" />
+                            <span className="px-3 py-1 bg-blue-100 text-blue-600 text-xs font-medium rounded-full">
+                              Accepted
+                            </span>
+                          </>
+                        )}
                         {booking.status === "active" && (
                           <>
                             <PlayCircle className="w-4 h-4 text-teal-500" />
@@ -826,6 +877,12 @@ const CustomerDashboard = () => {
                               Completed
                             </span>
                           </>
+                        )}
+                        {/* Payment Status Badge */}
+                        {booking.paymentStatus === "paid" && (
+                          <span className="px-3 py-1 bg-green-100 text-green-600 text-xs font-medium rounded-full ml-2">
+                            Paid
+                          </span>
                         )}
                       </div>
                     </div>
@@ -887,12 +944,62 @@ const CustomerDashboard = () => {
                             Only share this code when the service is completed to your satisfaction. Payment will be released once the provider enters this code.
                           </p>
                         </div>
+
+                        {/* Pay Now Button for Active Bookings */}
+                        {booking.paymentStatus !== "paid" && (
+                          <Button
+                            onClick={() => handlePayNow(booking)}
+                            className="w-full mt-4 bg-purple-600 hover:bg-purple-700 text-white"
+                          >
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            Pay Now - NPR {booking.payment?.toLocaleString()}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Pay Now for Accepted Bookings */}
+                    {booking.status === "accepted" && booking.paymentStatus !== "paid" && (
+                      <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="font-medium text-gray-900">Ready for Payment</p>
+                            <p className="text-sm text-gray-600">Your booking has been accepted. Pay now to proceed.</p>
+                          </div>
+                          <p className="text-lg font-bold text-teal-600">NPR {booking.payment?.toLocaleString()}</p>
+                        </div>
+                        <Button
+                          onClick={() => handlePayNow(booking)}
+                          className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                        >
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Pay with Khalti
+                        </Button>
                       </div>
                     )}
 
                     {/* Rate Service for Completed Bookings */}
                     {booking.status === "done" && (
                       <div className="mt-4">
+                        {/* Pay Now if not paid */}
+                        {booking.paymentStatus !== "paid" && (
+                          <div className="mb-4 p-4 bg-amber-50 rounded-lg border border-amber-100">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <p className="font-medium text-gray-900">Payment Required</p>
+                                <p className="text-sm text-gray-600">Please complete the payment for this service.</p>
+                              </div>
+                              <p className="text-lg font-bold text-teal-600">NPR {booking.payment?.toLocaleString()}</p>
+                            </div>
+                            <Button
+                              onClick={() => handlePayNow(booking)}
+                              className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                            >
+                              <CreditCard className="w-4 h-4 mr-2" />
+                              Pay with Khalti
+                            </Button>
+                          </div>
+                        )}
                         <div className="flex gap-3">
                           <Button 
                             onClick={() => handleOpenRatingModal(booking)}
@@ -910,7 +1017,12 @@ const CustomerDashboard = () => {
                             Report
                           </Button>
                         </div>
-                        <p className="text-sm text-teal-600 font-medium mt-3">Paid: NPR {booking.payment}</p>
+                        {booking.paymentStatus === "paid" && (
+                          <p className="text-sm text-green-600 font-medium mt-3 flex items-center gap-1">
+                            <CheckCircle className="w-4 h-4" />
+                            Paid: NPR {booking.payment?.toLocaleString()}
+                          </p>
+                        )}
                       </div>
                     )}
                   </CardContent>
@@ -1950,6 +2062,18 @@ const CustomerDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => {
+          setShowPaymentModal(false);
+          setPaymentBooking(null);
+        }}
+        booking={paymentBooking}
+        onPaymentSuccess={handlePaymentSuccess}
+        onPaymentError={handlePaymentError}
+      />
     </div>
   );
 };

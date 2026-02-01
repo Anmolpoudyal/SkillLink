@@ -9,6 +9,8 @@ import Login from "./pages/Login.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import ProviderDashboard from "./pages/ProviderDashboard.jsx";
 import CustomerDashboard from "./pages/CustomerDashboard.jsx";
+import PaymentVerify from "./pages/PaymentVerify.jsx";
+import PaymentHistory from "./pages/PaymentHistory.jsx";
 import { Toaster } from "./components/ui/toaster.jsx";
 
 function App() {
@@ -25,6 +27,8 @@ function App() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/provider-dashboard" element={<ProviderDashboard />} />
         <Route path="/customer-dashboard" element={<CustomerDashboard />} />
+        <Route path="/payment/verify" element={<PaymentVerify />} />
+        <Route path="/payment/history" element={<PaymentHistory />} />
       </Routes>
       <Toaster />
     </BrowserRouter>
