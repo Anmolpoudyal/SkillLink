@@ -67,7 +67,8 @@ CREATE TABLE provider_blocked_slots (
   start_time TIME,
   end_time TIME,
   reason VARCHAR(255),
-  created_at TIMESTAMP DEFAULT NOW()
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(provider_id, blocked_date)
 );
 
 -- Bookings table

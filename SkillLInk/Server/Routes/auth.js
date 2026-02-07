@@ -528,20 +528,20 @@ Router.post('/login', async (req, res) => {
                 ORDER BY day_of_week
             `, [id]);
 
-            // Get blocked slots for the next 30 days (from provider_time_off table)
+            // Get blocked slots (from provider_blocked_slots table)
             let blockedSlotsResult = { rows: [] };
             try {
                 blockedSlotsResult = await pool.query(`
-                    SELECT time_off_date as blocked_date, start_time, end_time, reason
-                    FROM provider_time_off
+                    SELECT blocked_date, start_time, end_time, reason
+                    FROM provider_blocked_slots
                     WHERE provider_id = $1 
-                    AND time_off_date >= CURRENT_DATE
-                    AND time_off_date <= CURRENT_DATE + INTERVAL '30 days'
-                    ORDER BY time_off_date
+                    AND blocked_date >= CURRENT_DATE
+                    ORDER BY blocked_date
                 `, [id]);
+                console.log('Blocked slots found:', blockedSlotsResult.rows.length, blockedSlotsResult.rows);
             } catch (e) {
                 // Table might not exist, continue without blocked slots
-                console.log('provider_time_off table not found or error:', e.message);
+                console.log('provider_blocked_slots table not found or error:', e.message);
             }
 
             // Get booked slots for the next 30 days
@@ -591,22 +591,34 @@ Router.post('/login', async (req, res) => {
                 const dayOfWeek = requestedDate.getDay();
                 const schedule = weeklySchedule[dayOfWeek];
 
+                console.log('Checking availability for date:', date, 'requestedDate:', requestedDate.toDateString());
+
                 if (schedule.isAvailable && schedule.startTime && schedule.endTime) {
                     // Generate hourly slots
                     const startHour = parseInt(schedule.startTime.split(':')[0]);
                     const endHour = parseInt(schedule.endTime.split(':')[0]);
 
-                    // Get blocked times for this date
+                    // Get blocked times for this date - compare dates properly
                     const blockedTimes = blockedSlotsResult.rows
-                        .filter(b => new Date(b.blocked_date).toDateString() === requestedDate.toDateString())
+                        .filter(b => {
+                            const blockedDateStr = new Date(b.blocked_date).toISOString().split('T')[0];
+                            const requestedDateStr = date; // Already in YYYY-MM-DD format
+                            console.log('Comparing blocked date:', blockedDateStr, 'with requested:', requestedDateStr);
+                            return blockedDateStr === requestedDateStr;
+                        })
                         .map(b => ({
                             start: b.start_time,
                             end: b.end_time
                         }));
 
+                    console.log('Blocked times for this date:', blockedTimes);
+
                     // Get booked times for this date
                     const bookedTimes = bookedSlotsResult.rows
-                        .filter(b => new Date(b.preferred_date).toDateString() === requestedDate.toDateString())
+                        .filter(b => {
+                            const bookedDateStr = new Date(b.preferred_date).toISOString().split('T')[0];
+                            return bookedDateStr === date;
+                        })
                         .map(b => b.preferred_time?.slice(0, 5));
 
                     for (let hour = startHour; hour < endHour; hour++) {
@@ -712,6 +724,8 @@ Router.post('/login', async (req, res) => {
             const providerId = req.user.id;
             const { date, startTime, endTime, reason } = req.body;
 
+            console.log('Adding time off:', { providerId, date, startTime, endTime, reason });
+
             if (!date) {
                 return res.status(400).json({ message: 'Date is required' });
             }
@@ -731,17 +745,29 @@ Router.post('/login', async (req, res) => {
             const startTime24 = convertTo24Hour(startTime) || '00:00';
             const endTime24 = convertTo24Hour(endTime) || '23:59';
 
-            // Use UPSERT to handle duplicate date entries
+            console.log('Converted times:', { startTime24, endTime24 });
+
+            // Delete existing entry for this date if any, then insert new one
             await pool.query(`
-                INSERT INTO provider_time_off (provider_id, time_off_date, start_time, end_time, reason)
+                DELETE FROM provider_blocked_slots 
+                WHERE provider_id = $1 AND blocked_date = $2
+            `, [providerId, date]);
+            
+            const result = await pool.query(`
+                INSERT INTO provider_blocked_slots (provider_id, blocked_date, start_time, end_time, reason)
                 VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (provider_id, time_off_date) 
-                DO UPDATE SET start_time = $3, end_time = $4, reason = $5
+                RETURNING *
             `, [providerId, date, startTime24, endTime24, reason || 'Personal']);
 
-            res.json({ message: 'Time off added successfully' });
+            console.log('Time off added:', result.rows[0]);
+
+            res.json({ message: 'Time off added successfully', blockedSlot: result.rows[0] });
         } catch (error) {
             console.error('Add time off error:', error);
+            // Check if table doesn't exist
+            if (error.code === '42P01') {
+                return res.status(500).json({ message: 'Database table not found. Please run database migrations.' });
+            }
             res.status(500).json({ message: 'Server error adding time off' });
         }
     });
@@ -763,14 +789,14 @@ Router.post('/login', async (req, res) => {
             let blockedSlotsResult = { rows: [] };
             try {
                 blockedSlotsResult = await pool.query(`
-                    SELECT id, time_off_date, start_time, end_time, reason
-                    FROM provider_time_off
+                    SELECT id, blocked_date, start_time, end_time, reason
+                    FROM provider_blocked_slots
                     WHERE provider_id = $1
-                    AND time_off_date >= CURRENT_DATE
-                    ORDER BY time_off_date
+                    AND blocked_date >= CURRENT_DATE
+                    ORDER BY blocked_date
                 `, [providerId]);
             } catch (e) {
-                console.log('provider_time_off query error:', e.message);
+                console.log('provider_blocked_slots query error:', e.message);
             }
 
             // Format weekly schedule
@@ -806,7 +832,7 @@ Router.post('/login', async (req, res) => {
                 schedule,
                 blockedSlots: blockedSlotsResult.rows.map(b => ({
                     id: b.id,
-                    date: b.time_off_date,
+                    date: b.blocked_date,
                     startTime: b.start_time,
                     endTime: b.end_time,
                     reason: b.reason
@@ -825,7 +851,7 @@ Router.post('/login', async (req, res) => {
             const { id } = req.params;
 
             await pool.query(`
-                DELETE FROM provider_time_off
+                DELETE FROM provider_blocked_slots
                 WHERE id = $1 AND provider_id = $2
             `, [id, providerId]);
 

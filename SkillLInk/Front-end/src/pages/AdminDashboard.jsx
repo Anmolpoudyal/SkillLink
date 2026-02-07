@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.jsx";
 import { useToast } from "../hooks/useToast.js";
 import api from "../services/api.js";
-import { Shield, Users, UserCheck, UserX, Search, Eye, Download, Ban, CheckCircle, DollarSign, CreditCard } from "lucide-react";
+import { Shield, Users, UserCheck, UserX, Search, Eye, Download, Ban, CheckCircle, DollarSign, CreditCard, LogOut } from "lucide-react";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -19,22 +19,69 @@ const AdminDashboard = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [viewingCertificate, setViewingCertificate] = useState(null);
 
-  useEffect(() => {
-    // Check if user is admin
-    const userRole = localStorage.getItem("userRole");
-    const isLoggedIn = localStorage.getItem("isLoggedIn");
-    
-    if (!isLoggedIn || userRole !== "admin") {
+  // Handle auth errors by clearing localStorage and redirecting
+  const handleAuthError = (error) => {
+    if (error.message?.includes('Access denied') || error.message?.includes('Not authorized')) {
+      localStorage.removeItem("isLoggedIn");
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("userEmail");
+      localStorage.removeItem("userName");
       toast({
-        title: "Access Denied",
-        description: "You must be an admin to access this page",
+        title: "Session Expired",
+        description: "Please login again as admin",
         variant: "destructive",
       });
       setTimeout(() => navigate("/login"), 1500);
-      return;
+      return true;
     }
+    return false;
+  };
 
-    fetchData();
+  useEffect(() => {
+    // Check if user is admin - verify with server
+    const verifyAdmin = async () => {
+      const userRole = localStorage.getItem("userRole");
+      const isLoggedIn = localStorage.getItem("isLoggedIn");
+      
+      if (!isLoggedIn || userRole !== "admin") {
+        toast({
+          title: "Access Denied",
+          description: "You must be an admin to access this page",
+          variant: "destructive",
+        });
+        setTimeout(() => navigate("/login"), 1500);
+        return;
+      }
+
+      // Verify session with server
+      try {
+        const currentUser = await api.getCurrentUser();
+        if (currentUser.role !== 'admin') {
+          // localStorage is stale, update it and redirect
+          localStorage.setItem("userRole", currentUser.role);
+          toast({
+            title: "Access Denied",
+            description: "You are not logged in as admin",
+            variant: "destructive",
+          });
+          setTimeout(() => navigate("/login"), 1500);
+          return;
+        }
+        fetchData();
+      } catch (error) {
+        if (!handleAuthError(error)) {
+          toast({
+            title: "Session Error",
+            description: "Please login again",
+            variant: "destructive",
+          });
+          setTimeout(() => navigate("/login"), 1500);
+        }
+      }
+    };
+
+    verifyAdmin();
   }, [navigate, toast]);
 
   const fetchData = async () => {
@@ -51,11 +98,13 @@ const AdminDashboard = () => {
       setUsers(usersData.users);
       setStats(statsData.stats);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to fetch data",
-        variant: "destructive",
-      });
+      if (!handleAuthError(error)) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to fetch data",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -80,11 +129,13 @@ const AdminDashboard = () => {
       
       fetchData();
     } catch (error) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update user status",
-        variant: "destructive",
-      });
+      if (!handleAuthError(error)) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to update user status",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -123,6 +174,27 @@ const AdminDashboard = () => {
     link.click();
   };
 
+  // Handle logout - clear all stored data
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      // Always clear localStorage and redirect
+      localStorage.removeItem("isLoggedIn");
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("userEmail");
+      localStorage.removeItem("userName");
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out",
+      });
+      navigate("/login");
+    }
+  };
+
   const filteredUsers = users.filter((user) =>
     user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -149,9 +221,15 @@ const AdminDashboard = () => {
               <p className="text-muted-foreground">Manage users and monitor platform activity</p>
             </div>
           </div>
-          <Button variant="outline" onClick={() => navigate("/")}>
-            Back to Home
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate("/")}>
+              Back to Home
+            </Button>
+            <Button variant="destructive" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
 
         {/* Statistics Cards */}

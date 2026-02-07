@@ -64,6 +64,8 @@ const CustomerDashboard = () => {
     latitude: "27.7172",
     longitude: "85.3240",
     selectedDateTime: "",
+    preferredDate: "",
+    preferredTime: "",
   });
 
   // Profile view state
@@ -71,7 +73,7 @@ const CustomerDashboard = () => {
   const [profileTab, setProfileTab] = useState("about");
   const [profileAvailMonth, setProfileAvailMonth] = useState(new Date(2026, 0, 1)); // January 2026
   const [profileSelectedDate, setProfileSelectedDate] = useState(new Date(2026, 0, 26)); // Jan 26
-  const [profileSelectedSlot, setProfileSelectedSlot] = useState(null);
+  const [profileSelectedSlot, setProfileSelectedSlot] = useState(null); // { time: "9:00 AM", timeValue: "09:00" }
 
   // Dynamic profile time slots from API
   const [profileTimeSlots, setProfileTimeSlots] = useState([]);
@@ -263,9 +265,17 @@ const CustomerDashboard = () => {
       year: 'numeric',
     });
     
+    // Format date as YYYY-MM-DD for API
+    const year = selectedSlotDate.getFullYear();
+    const month = String(selectedSlotDate.getMonth() + 1).padStart(2, '0');
+    const day = String(selectedSlotDate.getDate()).padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day}`;
+    
     setBookingForm({
       ...bookingForm,
       selectedDateTime: `${dateStr} at ${slot.time}`,
+      preferredDate: formattedDate,
+      preferredTime: slot.timeValue || slot.time, // Use 24-hour format for API
     });
     setShowSlotsModal(false);
   };
@@ -533,6 +543,8 @@ const CustomerDashboard = () => {
       latitude: "27.7172",
       longitude: "85.3240",
       selectedDateTime: "",
+      preferredDate: "",
+      preferredTime: "",
     });
     setShowBookingForm(true);
   };
@@ -548,6 +560,8 @@ const CustomerDashboard = () => {
       latitude: "27.7172",
       longitude: "85.3240",
       selectedDateTime: "",
+      preferredDate: "",
+      preferredTime: "",
     });
     setShowBookingForm(true);
   };
@@ -568,8 +582,15 @@ const CustomerDashboard = () => {
       return;
     }
 
-    // Parse date and time from selectedDateTime
-    const [datePart, timePart] = bookingForm.selectedDateTime.split('T');
+    // Validate that date and time are properly set
+    if (!bookingForm.preferredDate || !bookingForm.preferredTime) {
+      toast({
+        title: "Missing Date/Time",
+        description: "Please select a valid date and time slot",
+        variant: "destructive",
+      });
+      return;
+    }
     
     try {
       await api.createBooking({
@@ -578,8 +599,8 @@ const CustomerDashboard = () => {
         serviceAddress: bookingForm.address,
         latitude: bookingForm.latitude || null,
         longitude: bookingForm.longitude || null,
-        preferredDate: datePart,
-        preferredTime: timePart || '09:00',
+        preferredDate: bookingForm.preferredDate,
+        preferredTime: bookingForm.preferredTime,
       });
 
       toast({
@@ -598,6 +619,8 @@ const CustomerDashboard = () => {
         latitude: "27.7172",
         longitude: "85.3240",
         selectedDateTime: "",
+        preferredDate: "",
+        preferredTime: "",
       });
     } catch (error) {
       console.error("Error sending booking request:", error);
@@ -1493,11 +1516,11 @@ const CustomerDashboard = () => {
                               {profileTimeSlots.map((slot, index) => (
                                 <button
                                   key={index}
-                                  onClick={() => slot.status === 'available' && setProfileSelectedSlot(slot.time)}
+                                  onClick={() => slot.status === 'available' && setProfileSelectedSlot({ time: slot.time, timeValue: slot.timeValue })}
                                   disabled={slot.status !== 'available'}
                                   className={`relative p-4 rounded-lg border text-sm font-medium transition-colors
                                     ${slot.status === 'available'
-                                      ? profileSelectedSlot === slot.time
+                                      ? profileSelectedSlot?.time === slot.time
                                         ? 'border-teal-500 bg-teal-50 text-teal-700'
                                         : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 cursor-pointer'
                                       : 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
@@ -1538,9 +1561,17 @@ const CustomerDashboard = () => {
                               day: 'numeric',
                               year: 'numeric',
                             });
+                            // Format date as YYYY-MM-DD for API
+                            const year = profileSelectedDate.getFullYear();
+                            const month = String(profileSelectedDate.getMonth() + 1).padStart(2, '0');
+                            const day = String(profileSelectedDate.getDate()).padStart(2, '0');
+                            const formattedDate = `${year}-${month}-${day}`;
+                            
                             setBookingForm({
                               ...bookingForm,
-                              selectedDateTime: `${dateStr} at ${profileSelectedSlot}`,
+                              selectedDateTime: `${dateStr} at ${profileSelectedSlot.time}`,
+                              preferredDate: formattedDate,
+                              preferredTime: profileSelectedSlot.timeValue || profileSelectedSlot.time,
                             });
                             setShowProfileView(false);
                             setShowBookingForm(true);

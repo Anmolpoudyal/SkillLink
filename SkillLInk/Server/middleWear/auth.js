@@ -32,10 +32,14 @@ export const protect = async (req, res, next) => {
 export const adminOnly = async (req, res, next) => {
     try {
         if(!req.user) {
+            console.log('Admin check failed: No user in request');
             return res.status(401).json({message: 'Not authorized'});
         }
         
+        console.log('Admin check - User role:', req.user.role, '| User email:', req.user.email);
+        
         if(req.user.role !== 'admin') {
+            console.log('Admin check failed: User role is', req.user.role, 'not admin');
             return res.status(403).json({message: 'Access denied. Admin only.'});
         }
         
