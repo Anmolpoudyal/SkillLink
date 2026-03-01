@@ -1,90 +1,122 @@
 import { Button } from "./ui/button";
-import { Menu } from "lucide-react";
-import { useState } from "react";
+import { Menu, X, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom"; 
 
 const HomeNav = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const navigate = useNavigate(); // <-- FIXED
+  const [scrolled, setScrolled] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   return (
-    <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
+    <nav className={`sticky top-0 z-50 transition-all duration-500 ${
+      scrolled 
+        ? 'bg-white/80 backdrop-blur-xl shadow-lg shadow-black/5 border-b border-white/50' 
+        : 'bg-transparent'
+    }`}>
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-20">
           
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2 group">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary to-blue-500 flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-xl group-hover:shadow-primary/30 transition-all duration-300 group-hover:scale-105">
               <span className="text-white font-bold text-xl">S</span>
             </div>
-            <span className="text-2xl font-bold text-foreground">SkillLink</span>
-          </div>
+            <span className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent group-hover:from-primary group-hover:to-blue-500 transition-all duration-300">
+              SkillLink
+            </span>
+          </Link>
           
-          {/* Desktop buttons */}
-          <div className="hidden md:flex items-center gap-4">
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center gap-2">
             <Button 
               variant="ghost" 
-              className="font-medium" 
+              className="font-medium rounded-full px-6 hover:bg-primary/10 hover:text-primary transition-all duration-300" 
               onClick={() => navigate('/firstlandingpage')}
             >
               Sign In
             </Button>
 
             <Button 
-              variant="hero" 
+              className="font-medium rounded-full px-6 bg-gradient-to-r from-primary to-blue-500 hover:from-primary/90 hover:to-blue-500/90 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 btn-shine"
               onClick={() => navigate('/provider-signup')}
             >
+              <Sparkles className="w-4 h-4 mr-2" />
               Get Started
             </Button>
           </div>
           
+          {/* Mobile Menu Button */}
           <button 
-            className="md:hidden p-2"
+            className="md:hidden p-2 rounded-xl hover:bg-muted transition-colors"
             onClick={() => setIsOpen(!isOpen)}
           >
-            <Menu className="w-6 h-6" />
+            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
         
         {/* Mobile menu */}
-        {isOpen && (
-          <div className="md:hidden py-4 space-y-4 border-t border-border">
-            
-            <Link to="#services" className="block text-foreground hover:text-primary font-medium">
+        <div className={`md:hidden overflow-hidden transition-all duration-300 ${
+          isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+        }`}>
+          <div className="py-4 space-y-3 border-t border-border/50">
+            <Link 
+              to="#services" 
+              className="block px-4 py-2 text-foreground hover:text-primary hover:bg-primary/5 rounded-xl font-medium transition-all"
+              onClick={() => setIsOpen(false)}
+            >
               Services
             </Link>
 
-            <Link to="/browse" className="block text-foreground hover:text-primary font-medium">
-              Browse Providers
-            </Link>
-
-            <Link to="#how-it-works" className="block text-foreground hover:text-primary font-medium">
+            <Link 
+              to="#how-it-works" 
+              className="block px-4 py-2 text-foreground hover:text-primary hover:bg-primary/5 rounded-xl font-medium transition-all"
+              onClick={() => setIsOpen(false)}
+            >
               How It Works
             </Link>
 
-            <Link to="#about" className="block text-foreground hover:text-primary font-medium">
+            <Link 
+              to="#about" 
+              className="block px-4 py-2 text-foreground hover:text-primary hover:bg-primary/5 rounded-xl font-medium transition-all"
+              onClick={() => setIsOpen(false)}
+            >
               About
             </Link>
 
-            <div className="flex flex-col gap-2 pt-4">
+            <div className="flex flex-col gap-2 pt-4 px-4">
               <Button 
-                variant="ghost" 
-                className="w-full font-medium" 
-                onClick={() => navigate('/firstlandingpage')}
+                variant="outline" 
+                className="w-full font-medium rounded-xl" 
+                onClick={() => {
+                  navigate('/firstlandingpage');
+                  setIsOpen(false);
+                }}
               >
                 Sign In
               </Button>
 
               <Button 
-                variant="hero" 
-                className="w-full" 
-                onClick={() => navigate('/provider-signup')}
+                className="w-full font-medium rounded-xl bg-gradient-to-r from-primary to-blue-500"
+                onClick={() => {
+                  navigate('/provider-signup');
+                  setIsOpen(false);
+                }}
               >
+                <Sparkles className="w-4 h-4 mr-2" />
                 Get Started
               </Button>
             </div>
-
           </div>
-        )}
+        </div>
       </div>
     </nav>
   );

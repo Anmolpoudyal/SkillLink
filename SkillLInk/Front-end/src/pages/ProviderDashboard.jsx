@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs"
 import { Button } from "../components/ui/button";
 import { useToast } from "../hooks/useToast.js";
 import api from "../services/api.js";
+import ScheduleManager from "../components/ScheduleManager.jsx";
 import {
   Clock,
   PlayCircle,
@@ -55,13 +56,13 @@ const ProviderDashboard = () => {
 
   // Weekly schedule state
   const [weeklySchedule, setWeeklySchedule] = useState([
-    { day: "Monday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM" },
-    { day: "Tuesday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM" },
-    { day: "Wednesday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM" },
-    { day: "Thursday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM" },
-    { day: "Friday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM" },
-    { day: "Saturday", enabled: false, startTime: "10:00 AM", endTime: "04:00 PM" },
-    { day: "Sunday", enabled: false, startTime: "10:00 AM", endTime: "04:00 PM" },
+    { day: "Monday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM", breakStart: "", breakEnd: "" },
+    { day: "Tuesday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM", breakStart: "", breakEnd: "" },
+    { day: "Wednesday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM", breakStart: "", breakEnd: "" },
+    { day: "Thursday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM", breakStart: "", breakEnd: "" },
+    { day: "Friday", enabled: false, startTime: "09:00 AM", endTime: "06:00 PM", breakStart: "", breakEnd: "" },
+    { day: "Saturday", enabled: false, startTime: "10:00 AM", endTime: "04:00 PM", breakStart: "", breakEnd: "" },
+    { day: "Sunday", enabled: false, startTime: "10:00 AM", endTime: "04:00 PM", breakStart: "", breakEnd: "" },
   ]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [savingSchedule, setSavingSchedule] = useState(false);
@@ -605,14 +606,24 @@ const ProviderDashboard = () => {
   };
 
   const StatCard = ({ title, value, icon: Icon, iconColor }) => (
-    <Card className="bg-white border border-gray-100 shadow-sm">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
+    <Card className="bg-white/80 backdrop-blur-sm border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group overflow-hidden">
+      <CardContent className="p-6 relative">
+        {/* Gradient overlay on hover */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        
+        <div className="flex items-center justify-between relative z-10">
           <div>
-            <p className="text-sm text-gray-500">{title}</p>
-            <p className="text-3xl font-bold text-gray-800 mt-1">{value}</p>
+            <p className="text-sm text-gray-500 font-medium">{title}</p>
+            <p className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mt-1">{value}</p>
           </div>
-          <Icon className={`w-10 h-10 ${iconColor}`} />
+          <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${
+            iconColor.includes('yellow') ? 'bg-yellow-50' :
+            iconColor.includes('blue') ? 'bg-blue-50' :
+            iconColor.includes('green') ? 'bg-green-50' :
+            'bg-teal-50'
+          } group-hover:scale-110 transition-transform duration-300`}>
+            <Icon className={`w-7 h-7 ${iconColor}`} />
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -631,12 +642,12 @@ const ProviderDashboard = () => {
     };
     
     return (
-      <Card className={`bg-white shadow-sm mb-4 ${isInProgress ? 'border-2 border-teal-100' : isCompleted ? 'border-2 border-green-100' : 'border border-gray-100'}`}>
+      <Card className={`bg-white/80 backdrop-blur-sm shadow-md hover:shadow-lg transition-all duration-300 mb-4 ${isInProgress ? 'border-2 border-blue-200 ring-2 ring-blue-100' : isCompleted ? 'border-2 border-green-200 ring-2 ring-green-100' : 'border border-gray-100'}`}>
         <CardContent className="p-6">
           {/* Header with customer info and badge */}
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-medium text-lg">
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-gray-600 font-bold text-lg shadow-sm">
                 {request.customer?.initial || 'C'}
               </div>
               <div>
@@ -764,45 +775,58 @@ const ProviderDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100">
+      {/* Decorative background elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 -left-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-teal-500/10 rounded-full blur-3xl" />
+      </div>
+
       {/* Navbar */}
-      <nav className="bg-white border-b border-gray-200 px-6 py-4">
+      <nav className="relative bg-white/80 backdrop-blur-md border-b border-gray-200/50 px-6 py-4 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">⚡</span>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-blue-500 rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-white font-bold text-lg">⚡</span>
             </div>
-            <span className="text-xl font-semibold text-gray-800">SkillLink</span>
+            <span className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">SkillLink</span>
           </div>
           <div className="flex items-center gap-6">
             <button 
               onClick={() => setShowEditProfileModal(true)}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
+              className="flex items-center gap-2 text-gray-600 hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-primary/5"
             >
               <Edit className="w-5 h-5" />
-              <span>Edit Profile</span>
+              <span className="font-medium">Edit Profile</span>
             </button>
             <button 
               onClick={() => setShowSettingsModal(true)}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
+              className="flex items-center gap-2 text-gray-600 hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-primary/5"
             >
               <Settings className="w-5 h-5" />
-              <span>Settings</span>
+              <span className="font-medium">Settings</span>
             </button>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium">
+            <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-blue-500/20 flex items-center justify-center text-primary font-bold shadow-sm">
                 {provider.initial}
               </div>
-              <span className="text-gray-700">{provider.name}</span>
+              <div className="hidden sm:block">
+                <span className="text-gray-700 font-medium">{provider.name}</span>
+              </div>
             </div>
-            <button onClick={handleLogout} className="text-gray-500 hover:text-gray-700">
+            <button 
+              onClick={handleLogout} 
+              className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-500 hover:bg-red-100 transition-colors"
+              title="Logout"
+            >
               <LogOut className="w-5 h-5" />
             </button>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-6 relative z-10">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
@@ -833,17 +857,17 @@ const ProviderDashboard = () => {
 
         {/* Main Tabs */}
         <Tabs defaultValue="requests" className="w-full">
-          <TabsList className="bg-white border border-gray-200 p-1 rounded-lg mb-6">
+          <TabsList className="bg-white/80 backdrop-blur-sm border border-gray-200 p-1.5 rounded-xl mb-6 shadow-sm">
             <TabsTrigger
               value="requests"
-              className="data-[state=active]:bg-gray-100 data-[state=active]:text-gray-800 px-6 flex items-center gap-2"
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-md px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all"
             >
               <Clock className="w-4 h-4" />
               Requests
             </TabsTrigger>
             <TabsTrigger
               value="availability"
-              className="data-[state=active]:bg-gray-100 data-[state=active]:text-gray-800 px-6 flex items-center gap-2"
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-md px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all"
             >
               <Settings className="w-4 h-4" />
               Availability
@@ -855,39 +879,39 @@ const ProviderDashboard = () => {
               <h2 className="text-2xl font-bold text-gray-800 mb-4">Booking Requests</h2>
               
               {/* Sub-tabs for request status */}
-              <div className="flex items-center gap-2 mb-6">
+              <div className="flex items-center gap-2 mb-6 bg-white/60 backdrop-blur-sm p-1.5 rounded-xl w-fit">
                 <button
                   onClick={() => setActiveBookingTab("pending")}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+                  className={`px-4 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${
                     activeBookingTab === "pending"
-                      ? "bg-gray-100 text-gray-800"
-                      : "text-gray-500 hover:bg-gray-50"
+                      ? "bg-white text-gray-800 shadow-sm"
+                      : "text-gray-500 hover:bg-white/50"
                   }`}
                 >
                   Pending
-                  <span className="bg-teal-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  <span className="bg-gradient-to-r from-primary to-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
                     {pendingRequests.length}
                   </span>
                 </button>
                 <button
                   onClick={() => setActiveBookingTab("inProgress")}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+                  className={`px-4 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${
                     activeBookingTab === "inProgress"
-                      ? "bg-gray-100 text-gray-800"
-                      : "text-gray-500 hover:bg-gray-50"
+                      ? "bg-white text-gray-800 shadow-sm"
+                      : "text-gray-500 hover:bg-white/50"
                   }`}
                 >
                   In Progress
-                  <span className="bg-teal-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  <span className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-xs px-2 py-0.5 rounded-full">
                     {inProgressRequests.length}
                   </span>
                 </button>
                 <button
                   onClick={() => setActiveBookingTab("completed")}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     activeBookingTab === "completed"
-                      ? "bg-gray-100 text-gray-800"
-                      : "text-gray-500 hover:bg-gray-50"
+                      ? "bg-white text-gray-800 shadow-sm"
+                      : "text-gray-500 hover:bg-white/50"
                   }`}
                 >
                   Completed
@@ -924,233 +948,79 @@ const ProviderDashboard = () => {
 
           <TabsContent value="availability">
             <div className="space-y-6">
-              {/* Weekly Schedule */}
-              <Card className="bg-white border border-gray-100 shadow-sm">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Clock className="w-5 h-5 text-gray-700" />
-                    <h3 className="text-xl font-semibold text-gray-800">Weekly Schedule</h3>
-                  </div>
-                  <p className="text-sm text-gray-500 mb-6">
-                    Set your regular working hours for each day of the week
-                  </p>
-
-                  <div className="space-y-4">
-                    {weeklySchedule.map((schedule, index) => (
-                      <div key={schedule.day} className="flex items-center gap-4">
-                        {/* Toggle */}
-                        <button
-                          onClick={() => {
-                            const newSchedule = [...weeklySchedule];
-                            newSchedule[index].enabled = !newSchedule[index].enabled;
-                            setWeeklySchedule(newSchedule);
-                          }}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            schedule.enabled ? "bg-teal-500" : "bg-gray-300"
-                          }`}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              schedule.enabled ? "translate-x-6" : "translate-x-1"
-                            }`}
-                          />
-                        </button>
-
-                        {/* Day name */}
-                        <span className={`w-28 font-medium ${
-                          schedule.enabled ? "text-gray-800" : "text-gray-400"
-                        }`}>
-                          {schedule.day}
-                        </span>
-
-                        {/* Time inputs */}
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={schedule.startTime}
-                              onChange={(e) => {
-                                const newSchedule = [...weeklySchedule];
-                                newSchedule[index].startTime = e.target.value;
-                                setWeeklySchedule(newSchedule);
-                              }}
-                              disabled={!schedule.enabled}
-                              className={`w-28 px-3 py-2 border rounded-lg text-sm ${
-                                schedule.enabled
-                                  ? "border-gray-300 text-gray-700"
-                                  : "border-gray-200 text-gray-400 bg-gray-50"
-                              }`}
-                            />
-                            <Clock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          </div>
-                          <span className="text-gray-500">to</span>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={schedule.endTime}
-                              onChange={(e) => {
-                                const newSchedule = [...weeklySchedule];
-                                newSchedule[index].endTime = e.target.value;
-                                setWeeklySchedule(newSchedule);
-                              }}
-                              disabled={!schedule.enabled}
-                              className={`w-28 px-3 py-2 border rounded-lg text-sm ${
-                                schedule.enabled
-                                  ? "border-gray-300 text-gray-700"
-                                  : "border-gray-200 text-gray-400 bg-gray-50"
-                              }`}
-                            />
-                            <Clock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <Button
-                    className="w-full mt-6 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white py-3 disabled:opacity-50"
-                    onClick={handleSaveSchedule}
-                    disabled={savingSchedule}
-                  >
-                    {savingSchedule ? "Saving..." : "Save Schedule"}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Block Specific Dates/Times */}
-              <Card className="bg-white border border-gray-100 shadow-sm">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CalendarDays className="w-5 h-5 text-gray-700" />
-                    <h3 className="text-xl font-semibold text-gray-800">Block Specific Dates/Times</h3>
-                  </div>
-                  <p className="text-sm text-gray-500 mb-6">
-                    Mark dates or time slots when you're unavailable
-                  </p>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Calendar */}
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <button
-                          onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}
-                          className="p-1 hover:bg-gray-100 rounded"
-                        >
-                          <ChevronLeft className="w-5 h-5 text-gray-500" />
-                        </button>
-                        <span className="font-medium text-gray-800">
-                          {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                        </span>
-                        <button
-                          onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
-                          className="p-1 hover:bg-gray-100 rounded"
-                        >
-                          <ChevronRight className="w-5 h-5 text-gray-500" />
-                        </button>
-                      </div>
-
-                      {/* Calendar Grid */}
-                      <div className="grid grid-cols-7 gap-1 text-center text-sm">
-                        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
-                          <div key={day} className="py-2 text-gray-500 font-medium">
-                            {day}
-                          </div>
-                        ))}
-                        {(() => {
-                          const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
-                          const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
-                          const daysInPrevMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 0).getDate();
-                          const cells = [];
-                          
-                          // Previous month days
-                          for (let i = firstDay - 1; i >= 0; i--) {
-                            cells.push(
-                              <div key={`prev-${i}`} className="py-2 text-gray-300">
-                                {daysInPrevMonth - i}
-                              </div>
-                            );
-                          }
-                          
-                          // Current month days
-                          const today = new Date();
-                          for (let day = 1; day <= daysInMonth; day++) {
-                            const isToday = day === today.getDate() && 
-                              currentMonth.getMonth() === today.getMonth() && 
-                              currentMonth.getFullYear() === today.getFullYear();
-                            const dateToSelect = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-                            cells.push(
-                              <div
-                                key={day}
-                                onClick={() => handleOpenBlockModal(dateToSelect)}
-                                className={`py-2 cursor-pointer rounded hover:bg-teal-50 ${
-                                  isToday ? "bg-teal-500 text-white hover:bg-teal-600" : "text-gray-700"
-                                }`}
-                              >
-                                {day}
-                              </div>
-                            );
-                          }
-                          
-                          // Next month days
-                          const remainingCells = 42 - cells.length;
-                          for (let i = 1; i <= remainingCells; i++) {
-                            cells.push(
-                              <div key={`next-${i}`} className="py-2 text-gray-300">
-                                {i}
-                              </div>
-                            );
-                          }
-                          
-                          return cells;
-                        })()}
-                      </div>
-                    </div>
-
-                    {/* Blocked Slots */}
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="font-medium text-gray-800">Blocked Slots</span>
-                        <Button
-                          size="sm"
-                          className="bg-teal-50 text-teal-600 hover:bg-teal-100"
-                          onClick={() => handleOpenBlockModal()}
-                        >
-                          <Plus className="w-4 h-4 mr-1" />
-                          Add Block
-                        </Button>
-                      </div>
-
-                      <div className="space-y-3">
-                        {blockedSlots.map((slot) => (
-                          <div
-                            key={slot.id}
-                            className="p-4 border border-gray-100 rounded-lg flex items-start justify-between"
-                          >
-                            <div>
-                              <p className="font-medium text-gray-800">{slot.date}</p>
-                              <p className="text-sm text-gray-500">{slot.time}</p>
-                              <span className="inline-block mt-2 px-2 py-1 text-xs bg-teal-50 text-teal-600 rounded">
-                                {slot.reason}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => handleDeleteTimeOff(slot.id)}
-                              className="text-red-400 hover:text-red-600 transition-colors"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
-                          </div>
-                        ))}
-                        {blockedSlots.length === 0 && (
-                          <p className="text-gray-500 text-center py-8">
-                            No blocked slots
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              {scheduleLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-500 border-t-transparent"></div>
+                </div>
+              ) : (
+                <ScheduleManager
+                  initialSchedule={weeklySchedule}
+                  initialBlockedSlots={blockedSlots}
+                  onSaveSchedule={async (schedule) => {
+                    setSavingSchedule(true);
+                    try {
+                      await api.saveAvailability(schedule);
+                      setWeeklySchedule(schedule);
+                      toast({
+                        title: "Success",
+                        description: "Schedule saved successfully!",
+                      });
+                    } catch (error) {
+                      toast({
+                        title: "Error",
+                        description: error.message || "Failed to save schedule",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setSavingSchedule(false);
+                    }
+                  }}
+                  onAddBlockedSlot={async (timeOffData) => {
+                    try {
+                      await api.addTimeOff(timeOffData);
+                      // Refresh blocked slots
+                      const response = await api.getMyAvailability();
+                      if (response.blockedSlots) {
+                        setBlockedSlots(response.blockedSlots.map(slot => ({
+                          id: slot.id,
+                          date: new Date(slot.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                          time: `${slot.startTime || '00:00'} - ${slot.endTime || '23:59'}`,
+                          startTime: slot.startTime,
+                          endTime: slot.endTime,
+                          reason: slot.reason || 'Personal'
+                        })));
+                      }
+                      toast({
+                        title: "Success",
+                        description: "Time off added successfully!",
+                      });
+                    } catch (error) {
+                      toast({
+                        title: "Error",
+                        description: error.message || "Failed to add time off",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  onDeleteBlockedSlot={async (id) => {
+                    try {
+                      await api.deleteTimeOff(id);
+                      setBlockedSlots(prev => prev.filter(slot => slot.id !== id));
+                      toast({
+                        title: "Success",
+                        description: "Time off removed",
+                      });
+                    } catch (error) {
+                      toast({
+                        title: "Error",
+                        description: error.message || "Failed to remove time off",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  saving={savingSchedule}
+                />
+              )}
             </div>
           </TabsContent>
         </Tabs>

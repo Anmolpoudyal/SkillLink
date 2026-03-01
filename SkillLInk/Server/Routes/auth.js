@@ -522,7 +522,7 @@ Router.post('/login', async (req, res) => {
 
             // Get weekly availability schedule
             const availabilityResult = await pool.query(`
-                SELECT day_of_week, is_available, start_time, end_time
+                SELECT day_of_week, is_available, start_time, end_time, break_start, break_end
                 FROM provider_availability
                 WHERE provider_id = $1
                 ORDER BY day_of_week
@@ -580,68 +580,99 @@ Router.post('/login', async (req, res) => {
                     day: dayNames[row.day_of_week],
                     isAvailable: row.is_available,
                     startTime: row.start_time,
-                    endTime: row.end_time
+                    endTime: row.end_time,
+                    breakStart: row.break_start || null,
+                    breakEnd: row.break_end || null
                 };
             });
+
+            // Helper to format a Date as YYYY-MM-DD in local timezone
+            const formatLocalDate = (d) => {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
 
             // Generate time slots for a specific date if provided
             let timeSlots = [];
             if (date) {
-                const requestedDate = new Date(date);
+                // Parse date string as local date to avoid timezone shift
+                const dateParts = date.split('-').map(Number);
+                const requestedDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
                 const dayOfWeek = requestedDate.getDay();
                 const schedule = weeklySchedule[dayOfWeek];
 
-                console.log('Checking availability for date:', date, 'requestedDate:', requestedDate.toDateString());
+                console.log('Checking availability for date:', date, 'dayOfWeek:', dayOfWeek, 'requestedDate:', requestedDate.toDateString());
 
                 if (schedule.isAvailable && schedule.startTime && schedule.endTime) {
-                    // Generate hourly slots
-                    const startHour = parseInt(schedule.startTime.split(':')[0]);
-                    const endHour = parseInt(schedule.endTime.split(':')[0]);
+                    // Parse start and end times to minutes since midnight
+                    const parseTimeToMinutes = (timeStr) => {
+                        if (!timeStr) return 0;
+                        const [hours, minutes] = timeStr.split(':').map(Number);
+                        return hours * 60 + (minutes || 0);
+                    };
 
-                    // Get blocked times for this date - compare dates properly
+                    const startMinutes = parseTimeToMinutes(schedule.startTime);
+                    const endMinutes = parseTimeToMinutes(schedule.endTime);
+                    const slotInterval = 30; // 30-minute slots
+
+                    // Get blocked times for this date - compare dates properly using local timezone
                     const blockedTimes = blockedSlotsResult.rows
                         .filter(b => {
-                            const blockedDateStr = new Date(b.blocked_date).toISOString().split('T')[0];
+                            const blockedDateStr = formatLocalDate(new Date(b.blocked_date));
                             const requestedDateStr = date; // Already in YYYY-MM-DD format
                             console.log('Comparing blocked date:', blockedDateStr, 'with requested:', requestedDateStr);
                             return blockedDateStr === requestedDateStr;
                         })
                         .map(b => ({
-                            start: b.start_time,
-                            end: b.end_time
+                            startMinutes: parseTimeToMinutes(b.start_time),
+                            endMinutes: parseTimeToMinutes(b.end_time)
                         }));
 
                     console.log('Blocked times for this date:', blockedTimes);
 
                     // Get booked times for this date
-                    const bookedTimes = bookedSlotsResult.rows
+                    const bookedSlots = bookedSlotsResult.rows
                         .filter(b => {
-                            const bookedDateStr = new Date(b.preferred_date).toISOString().split('T')[0];
+                            const bookedDateStr = formatLocalDate(new Date(b.preferred_date));
                             return bookedDateStr === date;
                         })
-                        .map(b => b.preferred_time?.slice(0, 5));
+                        .map(b => parseTimeToMinutes(b.preferred_time?.slice(0, 5)));
 
-                    for (let hour = startHour; hour < endHour; hour++) {
-                        const timeStr = `${hour.toString().padStart(2, '0')}:00`;
-                        const displayTime = hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? '12:00 PM' : `${hour}:00 AM`;
+                    // Generate slots at 30-minute intervals
+                    for (let minutes = startMinutes; minutes < endMinutes; minutes += slotInterval) {
+                        const hour = Math.floor(minutes / 60);
+                        const min = minutes % 60;
+                        const timeStr = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+                        
+                        // Format for display (12-hour format)
+                        const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+                        const ampm = hour >= 12 ? 'PM' : 'AM';
+                        const displayTime = `${hour12}:${String(min).padStart(2, '0')} ${ampm}`;
                         
                         // Check if slot is blocked
-                        const isBlocked = blockedTimes.some(b => {
-                            const blockStart = parseInt(b.start?.split(':')[0] || 0);
-                            const blockEnd = parseInt(b.end?.split(':')[0] || 24);
-                            return hour >= blockStart && hour < blockEnd;
-                        });
+                        const isBlocked = blockedTimes.some(b => 
+                            minutes >= b.startMinutes && minutes < b.endMinutes
+                        );
 
-                        // Check if slot is booked
-                        const isBooked = bookedTimes.includes(timeStr);
+                        // Check if slot is booked (with 1-hour buffer for service duration)
+                        const isBooked = bookedSlots.some(bookedTime => 
+                            Math.abs(minutes - bookedTime) < 60 // 1 hour service duration assumption
+                        );
 
-                        // Skip lunch hour (1 PM)
-                        const isLunch = hour === 13;
+                        // Check for break time using provider's actual break schedule
+                        let isBreak = false;
+                        if (schedule.breakStart && schedule.breakEnd) {
+                            const breakStartMin = parseTimeToMinutes(schedule.breakStart);
+                            const breakEndMin = parseTimeToMinutes(schedule.breakEnd);
+                            isBreak = minutes >= breakStartMin && minutes < breakEndMin;
+                        }
 
                         let status = 'available';
                         if (isBlocked) status = 'blocked';
                         else if (isBooked) status = 'booked';
-                        else if (isLunch) status = 'lunch';
+                        else if (isBreak) status = 'break';
 
                         timeSlots.push({
                             time: displayTime,
@@ -703,11 +734,13 @@ Router.post('/login', async (req, res) => {
 
                     const startTime24 = convertTo24Hour(slot.startTime);
                     const endTime24 = convertTo24Hour(slot.endTime);
+                    const breakStart24 = slot.breakStart ? convertTo24Hour(slot.breakStart) : null;
+                    const breakEnd24 = slot.breakEnd ? convertTo24Hour(slot.breakEnd) : null;
 
                     await pool.query(`
-                        INSERT INTO provider_availability (provider_id, day_of_week, is_available, start_time, end_time)
-                        VALUES ($1, $2, $3, $4, $5)
-                    `, [providerId, dayOfWeek, true, startTime24, endTime24]);
+                        INSERT INTO provider_availability (provider_id, day_of_week, is_available, start_time, end_time, break_start, break_end)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    `, [providerId, dayOfWeek, true, startTime24, endTime24, breakStart24, breakEnd24]);
                 }
             }
 
@@ -779,7 +812,7 @@ Router.post('/login', async (req, res) => {
 
             // Get weekly schedule
             const availabilityResult = await pool.query(`
-                SELECT day_of_week, is_available, start_time, end_time
+                SELECT day_of_week, is_available, start_time, end_time, break_start, break_end
                 FROM provider_availability
                 WHERE provider_id = $1
                 ORDER BY day_of_week
@@ -817,14 +850,18 @@ Router.post('/login', async (req, res) => {
                         day: day,
                         enabled: found.is_available,
                         startTime: convertTo12Hour(found.start_time),
-                        endTime: convertTo12Hour(found.end_time)
+                        endTime: convertTo12Hour(found.end_time),
+                        breakStart: convertTo12Hour(found.break_start),
+                        breakEnd: convertTo12Hour(found.break_end)
                     };
                 }
                 return {
                     day: day,
                     enabled: false,
                     startTime: '09:00 AM',
-                    endTime: '06:00 PM'
+                    endTime: '06:00 PM',
+                    breakStart: '',
+                    breakEnd: ''
                 };
             });
 
@@ -1218,6 +1255,92 @@ Router.post('/login', async (req, res) => {
         }
     });
 
+
+    // ============================================
+    // REVIEW & REPORT ENDPOINTS
+    // ============================================
+
+    // Submit a review (customer)
+    Router.post('/reviews', protect, async (req, res) => {
+        try {
+            const customerId = req.user.id;
+            const { bookingId, providerId, rating, comment } = req.body;
+
+            if (!bookingId || !providerId || !rating) {
+                return res.status(400).json({ message: 'Booking ID, provider ID, and rating are required' });
+            }
+
+            if (rating < 1 || rating > 5) {
+                return res.status(400).json({ message: 'Rating must be between 1 and 5' });
+            }
+
+            // Verify the booking belongs to this customer and is completed
+            const bookingCheck = await pool.query(
+                `SELECT id FROM bookings WHERE id = $1 AND customer_id = $2 AND status = 'completed'`,
+                [bookingId, customerId]
+            );
+
+            if (bookingCheck.rows.length === 0) {
+                return res.status(404).json({ message: 'Completed booking not found' });
+            }
+
+            // Check if already reviewed
+            const existingReview = await pool.query(
+                'SELECT id FROM reviews WHERE booking_id = $1',
+                [bookingId]
+            );
+
+            if (existingReview.rows.length > 0) {
+                return res.status(409).json({ message: 'You have already reviewed this booking' });
+            }
+
+            // Insert review
+            const result = await pool.query(
+                `INSERT INTO reviews (booking_id, customer_id, provider_id, rating, comment)
+                 VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+                [bookingId, customerId, providerId, rating, comment || null]
+            );
+
+            // Update provider aggregate stats
+            const statsResult = await pool.query(
+                `SELECT COUNT(*) as total, AVG(rating) as avg_rating FROM reviews WHERE provider_id = $1`,
+                [providerId]
+            );
+
+            await pool.query(
+                `UPDATE service_providers SET total_reviews = $1, average_rating = $2 WHERE id = $3`,
+                [parseInt(statsResult.rows[0].total), parseFloat(statsResult.rows[0].avg_rating).toFixed(1), providerId]
+            );
+
+            res.status(201).json({ message: 'Review submitted successfully', review: result.rows[0] });
+        } catch (error) {
+            console.error('Submit review error:', error);
+            res.status(500).json({ message: 'Server error submitting review' });
+        }
+    });
+
+    // Submit a report (customer)
+    Router.post('/reports', protect, async (req, res) => {
+        try {
+            const customerId = req.user.id;
+            const { bookingId, providerId, reason, description } = req.body;
+
+            if (!providerId || !reason) {
+                return res.status(400).json({ message: 'Provider ID and reason are required' });
+            }
+
+            const result = await pool.query(
+                `INSERT INTO reports (booking_id, customer_id, provider_id, reason, description)
+                 VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+                [bookingId || null, customerId, providerId, reason, description || null]
+            );
+
+            res.status(201).json({ message: 'Report submitted successfully', report: result.rows[0] });
+        } catch (error) {
+            console.error('Submit report error:', error);
+            res.status(500).json({ message: 'Server error submitting report' });
+        }
+    });
 
     //logout
     Router.post('/logout', (req, res) => {

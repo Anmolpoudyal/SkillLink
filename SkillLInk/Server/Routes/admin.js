@@ -186,16 +186,109 @@ Router.get('/stats', async (req, res) => {
                 COALESCE(SUM(amount) FILTER (WHERE status = 'completed'), 0) as completed_amount
             FROM payments
         `);
+
+        // Get report stats
+        let reportStats = { rows: [{ total_reports: 0, pending_reports: 0 }] };
+        try {
+            reportStats = await pool.query(`
+                SELECT 
+                    COUNT(*) as total_reports,
+                    COUNT(*) FILTER (WHERE status = 'pending') as pending_reports
+                FROM reports
+            `);
+        } catch (e) {
+            console.log('Reports table query error:', e.message);
+        }
         
         const stats = {
             ...userStats.rows[0],
-            ...transactionStats.rows[0]
+            ...transactionStats.rows[0],
+            ...reportStats.rows[0]
         };
         
         res.json({ stats });
     } catch (error) {
         console.error('Get stats error:', error);
         res.status(500).json({ message: 'Error fetching statistics' });
+    }
+});
+
+// ============================================
+// REPORT MANAGEMENT ENDPOINTS
+// ============================================
+
+// Get all reports
+Router.get('/reports', async (req, res) => {
+    try {
+        const { status } = req.query;
+        
+        let query = `
+            SELECT 
+                r.id,
+                r.reason,
+                r.description,
+                r.status,
+                r.admin_notes,
+                r.created_at,
+                r.resolved_at,
+                r.booking_id,
+                cu.full_name as customer_name,
+                cu.email as customer_email,
+                pu.full_name as provider_name,
+                pu.email as provider_email,
+                sc.name as provider_service
+            FROM reports r
+            JOIN users cu ON r.customer_id = cu.id
+            JOIN users pu ON r.provider_id = pu.id
+            LEFT JOIN service_providers sp ON r.provider_id = sp.id
+            LEFT JOIN service_categories sc ON sp.service_category_id = sc.id
+            WHERE 1=1
+        `;
+        const params = [];
+        
+        if (status && status !== 'all') {
+            params.push(status);
+            query += ` AND r.status = $${params.length}`;
+        }
+        
+        query += ' ORDER BY r.created_at DESC';
+        
+        const result = await pool.query(query, params);
+        res.json({ reports: result.rows });
+    } catch (error) {
+        console.error('Get reports error:', error);
+        res.status(500).json({ message: 'Error fetching reports' });
+    }
+});
+
+// Update report status
+Router.patch('/reports/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, admin_notes } = req.body;
+        
+        const validStatuses = ['pending', 'reviewed', 'resolved', 'dismissed'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ message: 'Invalid status' });
+        }
+        
+        const resolvedAt = (status === 'resolved' || status === 'dismissed') ? 'NOW()' : 'NULL';
+        
+        const result = await pool.query(
+            `UPDATE reports 
+             SET status = $1, admin_notes = $2, resolved_at = ${resolvedAt}
+             WHERE id = $3 RETURNING *`,
+            [status, admin_notes || null, id]
+        );
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Report not found' });
+        }
+        
+        res.json({ message: 'Report updated successfully', report: result.rows[0] });
+    } catch (error) {
+        console.error('Update report error:', error);
+        res.status(500).json({ message: 'Error updating report' });
     }
 });
 

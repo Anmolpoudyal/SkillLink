@@ -56,6 +56,8 @@ CREATE TABLE provider_availability (
   is_available BOOLEAN DEFAULT TRUE,
   start_time TIME,
   end_time TIME,
+  break_start TIME,
+  break_end TIME,
   UNIQUE(provider_id, day_of_week)
 );
 

@@ -285,6 +285,34 @@ const api = {
     return handleResponse(response);
   },
 
+  // Submit a review
+  submitReview: async (reviewData) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/reviews`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(reviewData),
+    });
+    
+    return handleResponse(response);
+  },
+
+  // Submit a report
+  submitReport: async (reportData) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/reports`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(reportData),
+    });
+    
+    return handleResponse(response);
+  },
+
   // Admin API calls
   admin: {
     // Get all users
@@ -337,6 +365,32 @@ const api = {
       const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
         method: 'GET',
         credentials: 'include',
+      });
+      
+      return handleResponse(response);
+    },
+
+    // Get all reports
+    getReports: async (status = 'all') => {
+      const params = new URLSearchParams();
+      if (status && status !== 'all') params.append('status', status);
+      const response = await fetch(`${API_BASE_URL}/api/admin/reports?${params}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      return handleResponse(response);
+    },
+
+    // Update report status
+    updateReport: async (reportId, data) => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/reports/${reportId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(data),
       });
       
       return handleResponse(response);

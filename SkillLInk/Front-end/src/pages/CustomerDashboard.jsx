@@ -5,6 +5,8 @@ import { Button } from "../components/ui/button";
 import { useToast } from "../hooks/useToast.js";
 import api from "../services/api.js";
 import PaymentModal from "../components/PaymentModal.jsx";
+import LocationPicker, { calculateDistance, formatDistance } from "../components/LocationPicker.jsx";
+import TimeSlotPicker from "../components/TimeSlotPicker.jsx";
 import {
   Search,
   MapPin,
@@ -79,6 +81,8 @@ const CustomerDashboard = () => {
   const [profileTimeSlots, setProfileTimeSlots] = useState([]);
   const [profileTimeSlotsLoading, setProfileTimeSlotsLoading] = useState(false);
   const [weeklySchedule, setWeeklySchedule] = useState([]);
+  const [providerReviews, setProviderReviews] = useState([]);
+  const [providerReviewsLoading, setProviderReviewsLoading] = useState(false);
 
   // My Bookings state
   const [showMyBookings, setShowMyBookings] = useState(false);
@@ -189,15 +193,32 @@ const CustomerDashboard = () => {
     setShowRatingModal(true);
   };
 
-  const handleSubmitRating = () => {
-    console.log("Submitting rating:", {
-      booking: ratingBooking,
-      rating: ratingValue,
-      review: reviewText,
-    });
-    // TODO: Implement API call
-    setShowRatingModal(false);
-    setRatingBooking(null);
+  const handleSubmitRating = async () => {
+    if (!ratingBooking || ratingValue === 0) return;
+    try {
+      await api.submitReview({
+        bookingId: ratingBooking.id,
+        providerId: ratingBooking.provider.id,
+        rating: ratingValue,
+        comment: reviewText,
+      });
+      toast({
+        title: "Success",
+        description: "Your review has been submitted!",
+      });
+      setShowRatingModal(false);
+      setRatingBooking(null);
+      setRatingValue(0);
+      setReviewText("");
+      // Refresh bookings
+      fetchMyBookings();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit review",
+        variant: "destructive",
+      });
+    }
   };
 
   // Report modal state
@@ -223,15 +244,30 @@ const CustomerDashboard = () => {
     setShowReportModal(true);
   };
 
-  const handleSubmitReport = () => {
-    console.log("Submitting report:", {
-      booking: reportBooking,
-      reason: reportReason,
-      description: reportDescription,
-    });
-    // TODO: Implement API call
-    setShowReportModal(false);
-    setReportBooking(null);
+  const handleSubmitReport = async () => {
+    if (!reportBooking || !reportReason) return;
+    try {
+      await api.submitReport({
+        bookingId: reportBooking.id,
+        providerId: reportBooking.provider.id,
+        reason: reportReason,
+        description: reportDescription,
+      });
+      toast({
+        title: "Report Submitted",
+        description: "Your report has been submitted and will be reviewed by admin.",
+      });
+      setShowReportModal(false);
+      setReportBooking(null);
+      setReportReason("");
+      setReportDescription("");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit report",
+        variant: "destructive",
+      });
+    }
   };
 
   // Availability modal state
@@ -255,10 +291,15 @@ const CustomerDashboard = () => {
     setShowSlotsModal(false);
   };
 
-  const handleSelectTimeSlot = (slot) => {
-    if (slot.status !== "available") return;
+  // Updated handler for new TimeSlotPicker component
+  const handleSelectTimeSlot = (selection) => {
+    // Handle both old format (slot object) and new format (selection with date and slot)
+    const slot = selection.slot || selection;
+    const date = selection.date || selectedSlotDate;
     
-    const dateStr = selectedSlotDate.toLocaleDateString('en-US', {
+    if (slot.status && slot.status !== "available") return;
+    
+    const dateStr = date.toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
@@ -266,14 +307,14 @@ const CustomerDashboard = () => {
     });
     
     // Format date as YYYY-MM-DD for API
-    const year = selectedSlotDate.getFullYear();
-    const month = String(selectedSlotDate.getMonth() + 1).padStart(2, '0');
-    const day = String(selectedSlotDate.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     const formattedDate = `${year}-${month}-${day}`;
     
     setBookingForm({
       ...bookingForm,
-      selectedDateTime: `${dateStr} at ${slot.time}`,
+      selectedDateTime: selection.formattedDateTime || `${dateStr} at ${slot.time}`,
       preferredDate: formattedDate,
       preferredTime: slot.timeValue || slot.time, // Use 24-hour format for API
     });
@@ -455,11 +496,19 @@ const CustomerDashboard = () => {
     return () => clearTimeout(timeoutId);
   }, [searchQuery, selectedLocation, selectedService, maxRate, toast]);
 
+  // Format date as YYYY-MM-DD in local timezone (avoids UTC shift from toISOString)
+  const formatLocalDate = (d) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Function to fetch time slots for a provider on a specific date
   const fetchTimeSlots = async (providerId, date) => {
     setTimeSlotsLoading(true);
     try {
-      const dateStr = date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+      const dateStr = formatLocalDate(date); // Format: YYYY-MM-DD
       const response = await api.getProviderAvailability(providerId, dateStr);
       setTimeSlots(response.timeSlots || []);
     } catch (error) {
@@ -474,7 +523,7 @@ const CustomerDashboard = () => {
   const fetchProfileTimeSlots = async (providerId, date) => {
     setProfileTimeSlotsLoading(true);
     try {
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = formatLocalDate(date);
       console.log("Fetching availability for provider:", providerId, "date:", dateStr);
       const response = await api.getProviderAvailability(providerId, dateStr);
       console.log("API response:", response);
@@ -520,11 +569,30 @@ const CustomerDashboard = () => {
     return colors[service] || "bg-gray-100 text-gray-700";
   };
 
-  const handleViewProfile = (provider) => {
+  const handleViewProfile = async (provider) => {
     console.log("Provider bio:", provider.bio, "Full provider:", provider);
     setSelectedProvider(provider);
     setProfileTab("about");
     setShowProfileView(true);
+    // Fetch detailed provider data including reviews
+    setProviderReviewsLoading(true);
+    try {
+      const data = await api.getProviderDetails(provider.id);
+      setProviderReviews(data.reviews || []);
+      // Update selectedProvider with full details (email, phone, etc.)
+      setSelectedProvider(prev => ({
+        ...prev,
+        email: data.provider.email || prev.email,
+        phone: data.provider.phone || prev.phone,
+        rating: data.provider.rating || prev.rating,
+        reviews: data.provider.reviews || prev.reviews,
+      }));
+    } catch (error) {
+      console.error("Error fetching provider details:", error);
+      setProviderReviews([]);
+    } finally {
+      setProviderReviewsLoading(false);
+    }
   };
 
   const handleBackFromProfile = () => {
@@ -633,17 +701,20 @@ const CustomerDashboard = () => {
   };
 
   const ProviderCard = ({ provider }) => (
-    <Card className="bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-      <CardContent className="p-6">
+    <Card className="bg-white border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group overflow-hidden">
+      <CardContent className="p-6 relative">
+        {/* Subtle gradient overlay on hover */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        
         {/* Header with avatar and info */}
-        <div className="flex items-start gap-4 mb-4">
-          <div className="w-12 h-12 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 font-semibold text-lg">
+        <div className="flex items-start gap-4 mb-4 relative z-10">
+          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary to-blue-500 flex items-center justify-center text-white font-bold text-lg shadow-lg group-hover:scale-105 transition-transform duration-300">
             {provider.initial}
           </div>
           <div>
-            <h3 className="font-semibold text-gray-800">{provider.name}</h3>
+            <h3 className="font-bold text-gray-800 text-lg group-hover:text-primary transition-colors">{provider.name}</h3>
             <span
-              className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full mt-1 ${getServiceColor(
+              className={`inline-block px-3 py-1 text-xs font-semibold rounded-full mt-1 ${getServiceColor(
                 provider.service
               )}`}
             >
@@ -653,34 +724,42 @@ const CustomerDashboard = () => {
         </div>
 
         {/* Details */}
-        <div className="space-y-2 mb-4">
+        <div className="space-y-3 mb-4 relative z-10">
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <MapPin className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+              <MapPin className="w-4 h-4 text-gray-600" />
+            </div>
             <span>{provider.location}</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-            <span className="font-medium text-gray-800">{provider.rating}</span>
+            <div className="w-8 h-8 rounded-lg bg-yellow-50 flex items-center justify-center">
+              <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+            </div>
+            <span className="font-semibold text-gray-800">{provider.rating}</span>
             <span className="text-gray-400">({provider.reviews} reviews)</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Clock className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+              <Clock className="w-4 h-4 text-gray-600" />
+            </div>
             <span>{provider.experience} years experience</span>
           </div>
         </div>
 
         {/* Footer with rate and buttons */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-          <div className="flex items-center gap-1 text-teal-600 font-semibold">
-            <DollarSign className="w-4 h-4" />
-            <span>{provider.hourlyRate} NPR/hr</span>
+        <div className="flex items-center justify-between pt-4 border-t border-gray-100 relative z-10">
+          <div className="flex items-center gap-1 font-bold">
+            <span className="text-2xl bg-gradient-to-r from-primary to-blue-500 bg-clip-text text-transparent">
+              {provider.hourlyRate}
+            </span>
+            <span className="text-gray-500 text-sm">NPR/hr</span>
           </div>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => handleViewProfile(provider)}
-              className="text-gray-600"
+              className="text-gray-600 hover:border-primary hover:text-primary transition-colors"
             >
               <Eye className="w-4 h-4 mr-1" />
               Profile
@@ -688,7 +767,7 @@ const CustomerDashboard = () => {
             <Button
               size="sm"
               onClick={() => handleBookNow(provider)}
-              className="bg-teal-500 hover:bg-teal-600 text-white"
+              className="bg-gradient-to-r from-primary to-blue-500 hover:from-primary/90 hover:to-blue-500/90 text-white shadow-md hover:shadow-lg transition-all"
             >
               Book Now
             </Button>
@@ -699,73 +778,89 @@ const CustomerDashboard = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100">
+      {/* Decorative background elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 -left-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-teal-500/10 rounded-full blur-3xl" />
+      </div>
+
       {/* Navbar */}
-      <nav className="bg-white border-b border-gray-200 px-6 py-4">
+      <nav className="relative bg-white/80 backdrop-blur-md border-b border-gray-200/50 px-6 py-4 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">⚡</span>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-blue-500 rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-white font-bold text-lg">⚡</span>
             </div>
-            <span className="text-xl font-semibold text-gray-800">SkillLink</span>
+            <span className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">SkillLink</span>
           </div>
           <div className="flex items-center gap-6">
             <button 
               onClick={() => setShowMyBookings(true)}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
+              className="flex items-center gap-2 text-gray-600 hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-primary/5"
             >
               <Calendar className="w-5 h-5" />
-              <span>My Bookings</span>
+              <span className="font-medium">My Bookings</span>
             </button>
             <button 
               onClick={() => setShowEditProfileModal(true)}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
+              className="flex items-center gap-2 text-gray-600 hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-primary/5"
             >
               <Edit className="w-5 h-5" />
-              <span>Edit Profile</span>
+              <span className="font-medium">Edit Profile</span>
             </button>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 font-medium">
+            <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-blue-500/20 flex items-center justify-center text-primary font-bold shadow-sm">
                 {customer.initial}
               </div>
-              <span className="text-gray-700">{customer.name}</span>
+              <div className="hidden sm:block">
+                <span className="text-gray-700 font-medium">{customer.name}</span>
+              </div>
             </div>
-            <button onClick={handleLogout} className="text-gray-500 hover:text-gray-700">
+            <button 
+              onClick={handleLogout} 
+              className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-500 hover:bg-red-100 transition-colors"
+              title="Logout"
+            >
               <LogOut className="w-5 h-5" />
             </button>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-6 relative z-10">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Find Service Providers</h1>
-          <p className="text-gray-500 mt-1">Search and book verified professionals near you</p>
+          <h1 className="text-4xl font-bold text-gray-800">
+            Find Service <span className="bg-gradient-to-r from-primary to-blue-500 bg-clip-text text-transparent">Providers</span>
+          </h1>
+          <p className="text-gray-500 mt-2 text-lg">Search and book verified professionals near you</p>
         </div>
 
         {/* Search and Filters */}
-        <Card className="bg-white border border-gray-100 shadow-sm mb-8">
+        <Card className="bg-white/80 backdrop-blur-sm border border-gray-100 shadow-lg mb-8 overflow-hidden">
           <CardContent className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               {/* Search Input */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <div className="relative group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-primary transition-colors" />
                 <input
                   type="text"
                   placeholder="Search by name or service..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none"
+                  className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl text-gray-700 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all bg-white/50"
                 />
               </div>
 
               {/* Location Dropdown */}
-              <div className="relative">
+              <div className="relative group">
+                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                 <select
                   value={selectedLocation}
                   onChange={(e) => setSelectedLocation(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 appearance-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none bg-white"
+                  className="w-full pl-12 pr-10 py-3 border border-gray-200 rounded-xl text-gray-700 appearance-none focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white/50 transition-all"
                 >
                   {locations.map((location) => (
                     <option key={location} value={location}>
@@ -773,15 +868,15 @@ const CustomerDashboard = () => {
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
               </div>
 
               {/* Service Dropdown */}
-              <div className="relative">
+              <div className="relative group">
                 <select
                   value={selectedService}
                   onChange={(e) => setSelectedService(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 appearance-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none bg-white"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-700 appearance-none focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white/50 transition-all"
                 >
                   {services.map((service) => (
                     <option key={service} value={service}>
@@ -789,42 +884,56 @@ const CustomerDashboard = () => {
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
               </div>
             </div>
 
             {/* Max Hourly Rate */}
             <div className="max-w-xs">
-              <input
-                type="number"
-                placeholder="Max hourly rate (NPR)"
-                value={maxRate}
-                onChange={(e) => setMaxRate(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none"
-              />
+              <div className="relative">
+                <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="number"
+                  placeholder="Max hourly rate (NPR)"
+                  value={maxRate}
+                  onChange={(e) => setMaxRate(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl text-gray-700 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all bg-white/50"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Providers Grid */}
         {providersLoading ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-teal-500 border-t-transparent"></div>
-            <p className="text-gray-500 mt-4">Loading providers...</p>
+          <div className="text-center py-16">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+              <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <p className="text-gray-500 text-lg">Loading providers...</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProviders.map((provider) => (
-              <ProviderCard key={provider.id} provider={provider} />
+            {filteredProviders.map((provider, index) => (
+              <div 
+                key={provider.id} 
+                className="animate-fade-in-up"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <ProviderCard provider={provider} />
+              </div>
             ))}
           </div>
         )}
 
         {/* No Results */}
         {!providersLoading && filteredProviders.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No providers found matching your criteria</p>
-            <p className="text-gray-400 mt-2">Try adjusting your filters</p>
+          <div className="text-center py-16">
+            <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <Search className="w-10 h-10 text-gray-300" />
+            </div>
+            <p className="text-gray-600 text-xl font-medium">No providers found</p>
+            <p className="text-gray-400 mt-2">Try adjusting your search criteria</p>
           </div>
         )}
       </div>
@@ -1190,11 +1299,11 @@ const CustomerDashboard = () => {
                       <div className="flex items-center gap-4 text-sm text-gray-500">
                         <div className="flex items-center gap-1">
                           <Phone className="w-4 h-4" />
-                          <span>+977 9841234567</span>
+                          <span>{selectedProvider.phone || 'Not available'}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Mail className="w-4 h-4" />
-                          <span>ram.sharma@email.com</span>
+                          <span>{selectedProvider.email || 'Not available'}</span>
                         </div>
                       </div>
                     </div>
@@ -1307,7 +1416,7 @@ const CustomerDashboard = () => {
                         <div className="flex items-start gap-8">
                           {/* Left side - Overall rating */}
                           <div className="text-center">
-                            <p className="text-5xl font-bold text-teal-500 mb-1">{selectedProvider.rating}</p>
+                            <p className="text-5xl font-bold text-teal-500 mb-1">{selectedProvider.rating || 0}</p>
                             <div className="flex items-center justify-center gap-1 mb-2">
                               {[...Array(5)].map((_, i) => (
                                 <Star
@@ -1316,23 +1425,19 @@ const CustomerDashboard = () => {
                                 />
                               ))}
                             </div>
-                            <p className="text-sm text-gray-500">Based on {selectedProvider.reviews} reviews</p>
+                            <p className="text-sm text-gray-500">Based on {selectedProvider.reviews || 0} reviews</p>
                           </div>
                           
-                          {/* Right side - Rating bars */}
+                          {/* Right side - Rating bars computed from real reviews */}
                           <div className="flex-1 space-y-2">
-                            {[
-                              { stars: 5, count: 89 },
-                              { stars: 4, count: 25 },
-                              { stars: 3, count: 7 },
-                              { stars: 2, count: 2 },
-                              { stars: 1, count: 1 },
-                            ].map((item) => {
-                              const percentage = (item.count / selectedProvider.reviews) * 100;
+                            {[5, 4, 3, 2, 1].map((starCount) => {
+                              const count = providerReviews.filter(r => r.rating === starCount).length;
+                              const total = providerReviews.length || 1;
+                              const percentage = (count / total) * 100;
                               return (
-                                <div key={item.stars} className="flex items-center gap-3">
+                                <div key={starCount} className="flex items-center gap-3">
                                   <div className="flex items-center gap-1 w-8">
-                                    <span className="text-sm text-gray-600">{item.stars}</span>
+                                    <span className="text-sm text-gray-600">{starCount}</span>
                                     <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
                                   </div>
                                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -1341,7 +1446,7 @@ const CustomerDashboard = () => {
                                       style={{ width: `${percentage}%` }}
                                     />
                                   </div>
-                                  <span className="text-sm text-gray-500 w-8 text-right">{item.count}</span>
+                                  <span className="text-sm text-gray-500 w-8 text-right">{count}</span>
                                 </div>
                               );
                             })}
@@ -1354,48 +1459,61 @@ const CustomerDashboard = () => {
                     <Card className="bg-white border border-gray-100">
                       <CardContent className="p-6">
                         <h3 className="text-lg font-semibold text-gray-900 mb-6">Customer Reviews</h3>
-                        <div className="space-y-0">
-                          {[
-                            { name: "Amit Poudel", initial: "A", rating: 5, comment: "Excellent work! Ram fixed our electrical panel quickly and professionally. Highly recommended!", date: "2 days ago", bgColor: "bg-teal-500" },
-                            { name: "Sunita Karki", initial: "S", rating: 5, comment: "Very punctual and skilled. Did a great job with our home wiring. Fair pricing too.", date: "1 week ago", bgColor: "bg-blue-500" },
-                            { name: "Bikash Thapa", initial: "B", rating: 4, comment: "Good service overall. Completed the work on time. Would hire again.", date: "2 weeks ago", bgColor: "bg-teal-500" },
-                            { name: "Rekha Shrestha", initial: "R", rating: 5, comment: "Amazing work on our LED installation. The whole house looks beautiful now!", date: "3 weeks ago", bgColor: "bg-orange-500" },
-                            { name: "Dipak Maharjan", initial: "D", rating: 4, comment: "Professional and knowledgeable. Fixed a tricky wiring issue that others couldn't solve.", date: "1 month ago", bgColor: "bg-teal-400" },
-                          ].map((review, index) => (
-                            <div key={index} className="py-5 border-b border-gray-100 last:border-0">
-                              <div className="flex items-start gap-4">
-                                <div className={`w-10 h-10 rounded-full ${review.bgColor} flex items-center justify-center text-white font-semibold flex-shrink-0`}>
-                                  {review.initial}
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <p className="font-semibold text-gray-900">{review.name}</p>
-                                    <p className="text-sm text-gray-400">{review.date}</p>
+                        {providerReviewsLoading ? (
+                          <div className="flex items-center justify-center py-12">
+                            <div className="animate-spin rounded-full h-8 w-8 border-4 border-teal-500 border-t-transparent"></div>
+                          </div>
+                        ) : providerReviews.length === 0 ? (
+                          <div className="text-center py-12">
+                            <Star className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                            <p className="text-gray-500 font-medium">No reviews yet</p>
+                            <p className="text-sm text-gray-400 mt-1">Be the first to review this provider</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-0">
+                            {providerReviews.map((review, index) => {
+                              const bgColors = ["bg-teal-500", "bg-blue-500", "bg-orange-500", "bg-teal-400", "bg-purple-500"];
+                              const timeAgo = (dateStr) => {
+                                const now = new Date();
+                                const date = new Date(dateStr);
+                                const diffMs = now - date;
+                                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                                if (diffDays === 0) return "Today";
+                                if (diffDays === 1) return "Yesterday";
+                                if (diffDays < 7) return `${diffDays} days ago`;
+                                if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) > 1 ? 's' : ''} ago`;
+                                if (diffDays < 365) return `${Math.floor(diffDays / 30)} month${Math.floor(diffDays / 30) > 1 ? 's' : ''} ago`;
+                                return `${Math.floor(diffDays / 365)} year${Math.floor(diffDays / 365) > 1 ? 's' : ''} ago`;
+                              };
+                              return (
+                                <div key={review.id || index} className="py-5 border-b border-gray-100 last:border-0">
+                                  <div className="flex items-start gap-4">
+                                    <div className={`w-10 h-10 rounded-full ${bgColors[index % bgColors.length]} flex items-center justify-center text-white font-semibold flex-shrink-0`}>
+                                      {review.customerName?.charAt(0)?.toUpperCase() || 'U'}
+                                    </div>
+                                    <div className="flex-1">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <p className="font-semibold text-gray-900">{review.customerName || 'Anonymous'}</p>
+                                        <p className="text-sm text-gray-400">{timeAgo(review.createdAt)}</p>
+                                      </div>
+                                      <div className="flex items-center gap-1 mb-2">
+                                        {[...Array(5)].map((_, i) => (
+                                          <Star
+                                            key={i}
+                                            className={`w-4 h-4 ${i < review.rating ? "text-amber-500 fill-amber-500" : "text-gray-300"}`}
+                                          />
+                                        ))}
+                                      </div>
+                                      {review.comment && (
+                                        <p className="text-gray-700 text-sm">{review.comment}</p>
+                                      )}
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-1 mb-2">
-                                    {[...Array(5)].map((_, i) => (
-                                      <Star
-                                        key={i}
-                                        className={`w-4 h-4 ${i < review.rating ? "text-amber-500 fill-amber-500" : "text-gray-300"}`}
-                                      />
-                                    ))}
-                                  </div>
-                                  <p className="text-teal-700 text-sm">{review.comment}</p>
                                 </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Load More Button */}
-                        <div className="mt-6">
-                          <Button
-                            variant="outline"
-                            className="w-full py-3 border-gray-200 text-gray-700 hover:bg-gray-50"
-                          >
-                            Load More Reviews
-                          </Button>
-                        </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </div>
@@ -1698,36 +1816,24 @@ const CustomerDashboard = () => {
                 {/* Service Location */}
                 <div className="mb-6">
                   <h4 className="text-sm font-semibold text-gray-700 mb-4">Service Location</h4>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-600 mb-2">Full Address</label>
-                    <textarea
-                      placeholder="Street, Area, Landmark"
-                      value={bookingForm.address}
-                      onChange={(e) => setBookingForm({ ...bookingForm, address: e.target.value })}
-                      rows={2}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none resize-y"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-2">Latitude (Optional)</label>
-                      <input
-                        type="text"
-                        value={bookingForm.latitude}
-                        onChange={(e) => setBookingForm({ ...bookingForm, latitude: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-2">Longitude (Optional)</label>
-                      <input
-                        type="text"
-                        value={bookingForm.longitude}
-                        onChange={(e) => setBookingForm({ ...bookingForm, longitude: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none"
-                      />
-                    </div>
-                  </div>
+                  <p className="text-xs text-gray-500 mb-3">Search for your address or click on the map to set your location</p>
+                  <LocationPicker
+                    value={{
+                      latitude: bookingForm.latitude ? parseFloat(bookingForm.latitude) : null,
+                      longitude: bookingForm.longitude ? parseFloat(bookingForm.longitude) : null,
+                      address: bookingForm.address,
+                    }}
+                    onChange={(location) => {
+                      setBookingForm({
+                        ...bookingForm,
+                        address: location.address,
+                        latitude: location.latitude ? location.latitude.toString() : "",
+                        longitude: location.longitude ? location.longitude.toString() : "",
+                      });
+                    }}
+                    placeholder="Search for your service address..."
+                    mapHeight="250px"
+                  />
                 </div>
 
                 {/* Preferred Schedule */}
@@ -1765,164 +1871,19 @@ const CustomerDashboard = () => {
         </div>
       )}
 
-      {/* View Available Slots Modal */}
-      {showSlotsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {selectedProvider?.name}'s Availability
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">Select a date and time slot for your appointment</p>
-              </div>
-              <button
-                onClick={handleCloseSlotsModal}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Calendar */}
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <button
-                      onClick={() => setSlotsMonth(new Date(slotsMonth.getFullYear(), slotsMonth.getMonth() - 1, 1))}
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                      <ChevronLeft className="w-5 h-5 text-gray-600" />
-                    </button>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {slotsMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                    </h3>
-                    <button
-                      onClick={() => setSlotsMonth(new Date(slotsMonth.getFullYear(), slotsMonth.getMonth() + 1, 1))}
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                      <ChevronRight className="w-5 h-5 text-gray-600" />
-                    </button>
-                  </div>
-
-                  {/* Day headers */}
-                  <div className="grid grid-cols-7 gap-1 mb-2">
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                      <div key={day} className="text-center text-sm font-medium text-gray-500 py-2">
-                        {day}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Calendar days */}
-                  <div className="grid grid-cols-7 gap-1">
-                    {(() => {
-                      const firstDay = new Date(slotsMonth.getFullYear(), slotsMonth.getMonth(), 1);
-                      const lastDay = new Date(slotsMonth.getFullYear(), slotsMonth.getMonth() + 1, 0);
-                      const startPadding = firstDay.getDay();
-                      const days = [];
-
-                      // Empty cells for days before month starts
-                      for (let i = 0; i < startPadding; i++) {
-                        days.push(<div key={`empty-${i}`} className="h-10" />);
-                      }
-
-                      // Calendar days
-                      for (let day = 1; day <= lastDay.getDate(); day++) {
-                        const date = new Date(slotsMonth.getFullYear(), slotsMonth.getMonth(), day);
-                        const isSelected = selectedSlotDate &&
-                          date.getDate() === selectedSlotDate.getDate() &&
-                          date.getMonth() === selectedSlotDate.getMonth() &&
-                          date.getFullYear() === selectedSlotDate.getFullYear();
-                        const isToday = new Date().toDateString() === date.toDateString();
-                        const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
-
-                        days.push(
-                          <button
-                            key={day}
-                            onClick={() => !isPast && setSelectedSlotDate(date)}
-                            disabled={isPast}
-                            className={`h-10 w-10 mx-auto rounded-full flex items-center justify-center text-sm font-medium transition-colors
-                              ${isSelected
-                                ? 'bg-teal-500 text-white'
-                                : isToday
-                                  ? 'bg-teal-100 text-teal-700'
-                                  : isPast
-                                    ? 'text-gray-300 cursor-not-allowed'
-                                    : 'hover:bg-gray-100 text-gray-700'
-                              }`}
-                          >
-                            {day}
-                          </button>
-                        );
-                      }
-
-                      return days;
-                    })()}
-                  </div>
-                </div>
-
-                {/* Time Slots */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    {selectedSlotDate
-                      ? selectedSlotDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-                      : 'Select a date'
-                    }
-                  </h3>
-                  {timeSlotsLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-500"></div>
-                    </div>
-                  ) : timeSlots.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <Clock className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                      <p>No available slots for this date</p>
-                      <p className="text-sm">Provider may not work on this day</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2">
-                      {timeSlots.map((slot, index) => (
-                        <button
-                          key={index}
-                          onClick={() => handleSelectTimeSlot(slot)}
-                          disabled={slot.status !== 'available'}
-                          className={`relative p-3 rounded-lg border text-sm font-medium transition-colors
-                            ${slot.status === 'available'
-                              ? 'border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:border-teal-300 cursor-pointer'
-                              : slot.status === 'booked'
-                                ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                                : 'border-orange-200 bg-orange-50 text-orange-400 cursor-not-allowed'
-                            }`}
-                        >
-                          <span>{slot.time}</span>
-                          {slot.status === 'booked' && (
-                            <span className="absolute top-1 right-1 text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
-                              Booked
-                            </span>
-                          )}
-                          {slot.status === 'lunch' && (
-                            <span className="absolute top-1 right-1 text-xs bg-orange-200 text-orange-600 px-2 py-0.5 rounded-full">
-                              Lunch Break
-                            </span>
-                          )}
-                          {slot.status === 'blocked' && (
-                            <span className="absolute top-1 right-1 text-xs bg-red-200 text-red-600 px-2 py-0.5 rounded-full">
-                              Unavailable
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* View Available Slots Modal - Using new TimeSlotPicker */}
+      {showSlotsModal && selectedProvider && (
+        <TimeSlotPicker
+          provider={selectedProvider}
+          onSelectSlot={handleSelectTimeSlot}
+          onClose={handleCloseSlotsModal}
+          selectedDate={selectedSlotDate}
+          fetchAvailability={async (providerId, dateStr) => {
+            const response = await api.getProviderAvailability(providerId, dateStr);
+            return response;
+          }}
+          slotDuration={60}
+        />
       )}
 
       {/* Rating Modal */}
