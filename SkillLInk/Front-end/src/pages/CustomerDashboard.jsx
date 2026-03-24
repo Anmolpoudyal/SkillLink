@@ -7,6 +7,7 @@ import api from "../services/api.js";
 import PaymentModal from "../components/PaymentModal.jsx";
 import LocationPicker, { calculateDistance, formatDistance } from "../components/LocationPicker.jsx";
 import TimeSlotPicker from "../components/TimeSlotPicker.jsx";
+import NotificationBell from "../components/NotificationBell.jsx";
 import {
   Search,
   MapPin,
@@ -810,6 +811,7 @@ const CustomerDashboard = () => {
               <Edit className="w-5 h-5" />
               <span className="font-medium">Edit Profile</span>
             </button>
+            <NotificationBell />
             <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-blue-500/20 flex items-center justify-center text-primary font-bold shadow-sm">
                 {customer.initial}

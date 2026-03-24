@@ -3,6 +3,7 @@ import bycrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import  pool  from '../Services/db.js';
 import { protect } from '../middleWear/auth.js';
+import { createNotification } from './notifications.js';
 
 const Router = express.Router();
 const cookieOptions = {
@@ -927,6 +928,15 @@ Router.post('/login', async (req, res) => {
                 RETURNING *
             `, [customerId, providerId, problemDescription, serviceAddress, latitude || null, longitude || null, preferredDate, preferredTime]);
 
+            // Notify the provider about the new booking
+            await createNotification(
+                providerId,
+                'new_booking',
+                'New Booking Request',
+                `You have a new booking request for ${new Date(preferredDate).toLocaleDateString()} at ${preferredTime}.`,
+                result.rows[0].id
+            );
+
             res.status(201).json({ 
                 message: 'Booking request sent successfully', 
                 booking: result.rows[0] 
@@ -1221,6 +1231,37 @@ Router.post('/login', async (req, res) => {
 
             const result = await pool.query(updateQuery, params);
 
+            // Notify the customer about booking status change
+            const customerId = currentBooking.customer_id;
+            const providerName = req.user.full_name;
+            const notificationMap = {
+                accepted: {
+                    type: 'booking_accepted',
+                    title: 'Booking Accepted',
+                    message: `${providerName} has accepted your booking request${estimatedAmount ? ` with an estimated cost of Rs. ${estimatedAmount}` : ''}.`
+                },
+                rejected: {
+                    type: 'booking_rejected',
+                    title: 'Booking Rejected',
+                    message: `${providerName} has declined your booking request. Reason: ${rejectionReason || 'Not available'}.`
+                },
+                in_progress: {
+                    type: 'booking_started',
+                    title: 'Service Started',
+                    message: `${providerName} has started working on your service.`
+                },
+                completed: {
+                    type: 'booking_completed',
+                    title: 'Service Completed',
+                    message: `${providerName} has completed your service. Please review and make payment.`
+                }
+            };
+
+            if (notificationMap[status]) {
+                const n = notificationMap[status];
+                await createNotification(customerId, n.type, n.title, n.message, id);
+            }
+
             res.json({ 
                 message: `Booking ${status} successfully`, 
                 booking: result.rows[0] 
@@ -1248,6 +1289,16 @@ Router.post('/login', async (req, res) => {
                 return res.status(404).json({ message: 'Booking not found or cannot be cancelled' });
             }
 
+            // Notify the provider about cancellation
+            const cancelledBooking = result.rows[0];
+            await createNotification(
+                cancelledBooking.provider_id,
+                'booking_cancelled',
+                'Booking Cancelled',
+                `A customer has cancelled their booking scheduled for ${new Date(cancelledBooking.preferred_date).toLocaleDateString()}.`,
+                id
+            );
+
             res.json({ message: 'Booking cancelled successfully', booking: result.rows[0] });
         } catch (error) {
             console.error('Cancel booking error:', error);
@@ -1259,6 +1310,45 @@ Router.post('/login', async (req, res) => {
     // ============================================
     // REVIEW & REPORT ENDPOINTS
     // ============================================
+
+    // Get reviews for the logged-in provider (my reviews)
+    Router.get('/my-reviews', protect, async (req, res) => {
+        try {
+            const providerId = req.user.id;
+
+            // Get reviews
+            const reviewsResult = await pool.query(`
+                SELECT r.*, u.full_name as customer_name
+                FROM reviews r
+                JOIN users u ON r.customer_id = u.id
+                WHERE r.provider_id = $1
+                ORDER BY r.created_at DESC
+            `, [providerId]);
+
+            // Get aggregate stats
+            const statsResult = await pool.query(`
+                SELECT 
+                    COUNT(*) as total_reviews,
+                    COALESCE(AVG(rating), 0) as average_rating
+                FROM reviews WHERE provider_id = $1
+            `, [providerId]);
+
+            res.json({
+                reviews: reviewsResult.rows.map(r => ({
+                    id: r.id,
+                    rating: r.rating,
+                    comment: r.comment,
+                    customerName: r.customer_name,
+                    createdAt: r.created_at
+                })),
+                totalReviews: parseInt(statsResult.rows[0].total_reviews) || 0,
+                averageRating: parseFloat(parseFloat(statsResult.rows[0].average_rating).toFixed(1)) || 0
+            });
+        } catch (error) {
+            console.error('Get my reviews error:', error);
+            res.status(500).json({ message: 'Server error getting reviews' });
+        }
+    });
 
     // Submit a review (customer)
     Router.post('/reviews', protect, async (req, res) => {

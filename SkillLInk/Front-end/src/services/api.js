@@ -285,6 +285,15 @@ const api = {
     return handleResponse(response);
   },
 
+  // Get provider's own reviews
+  getMyReviews: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/my-reviews`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return handleResponse(response);
+  },
+
   // Submit a review
   submitReview: async (reviewData) => {
     const response = await fetch(`${API_BASE_URL}/api/auth/reviews`, {
@@ -393,6 +402,57 @@ const api = {
         body: JSON.stringify(data),
       });
       
+      return handleResponse(response);
+    },
+  },
+
+  // ============================================
+  // NOTIFICATION API CALLS
+  // ============================================
+
+  notifications: {
+    // Get all notifications
+    getAll: async () => {
+      const response = await fetch(`${API_BASE_URL}/api/notifications`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      return handleResponse(response);
+    },
+
+    // Get unread count
+    getUnreadCount: async () => {
+      const response = await fetch(`${API_BASE_URL}/api/notifications/unread-count`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      return handleResponse(response);
+    },
+
+    // Mark one as read
+    markAsRead: async (notificationId) => {
+      const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {
+        method: 'PATCH',
+        credentials: 'include',
+      });
+      return handleResponse(response);
+    },
+
+    // Mark all as read
+    markAllAsRead: async () => {
+      const response = await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
+        method: 'PATCH',
+        credentials: 'include',
+      });
+      return handleResponse(response);
+    },
+
+    // Delete a notification
+    delete: async (notificationId) => {
+      const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
       return handleResponse(response);
     },
   },

@@ -6,6 +6,7 @@ import { Button } from "../components/ui/button";
 import { useToast } from "../hooks/useToast.js";
 import api from "../services/api.js";
 import ScheduleManager from "../components/ScheduleManager.jsx";
+import NotificationBell from "../components/NotificationBell.jsx";
 import {
   Clock,
   PlayCircle,
@@ -28,6 +29,7 @@ import {
   Phone,
   Mail,
   User,
+  Star,
 } from "lucide-react";
 
 const ProviderDashboard = () => {
@@ -53,6 +55,11 @@ const ProviderDashboard = () => {
   // Bookings state - fetched from API
   const [bookings, setBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
+
+  // Reviews state
+  const [myReviews, setMyReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewStats, setReviewStats] = useState({ totalReviews: 0, averageRating: 0 });
 
   // Weekly schedule state
   const [weeklySchedule, setWeeklySchedule] = useState([
@@ -256,6 +263,26 @@ const ProviderDashboard = () => {
 
     fetchProfile();
   }, [navigate, toast]);
+
+  // Fetch reviews on mount
+  useEffect(() => {
+    const fetchReviews = async () => {
+      setReviewsLoading(true);
+      try {
+        const response = await api.getMyReviews();
+        setMyReviews(response.reviews || []);
+        setReviewStats({
+          totalReviews: response.totalReviews || 0,
+          averageRating: response.averageRating || 0,
+        });
+      } catch (error) {
+        console.error("Error fetching reviews:", error);
+      } finally {
+        setReviewsLoading(false);
+      }
+    };
+    fetchReviews();
+  }, []);
 
   // Fetch availability on mount
   useEffect(() => {
@@ -807,6 +834,7 @@ const ProviderDashboard = () => {
               <Settings className="w-5 h-5" />
               <span className="font-medium">Settings</span>
             </button>
+            <NotificationBell />
             <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-blue-500/20 flex items-center justify-center text-primary font-bold shadow-sm">
                 {provider.initial}
@@ -871,6 +899,13 @@ const ProviderDashboard = () => {
             >
               <Settings className="w-4 h-4" />
               Availability
+            </TabsTrigger>
+            <TabsTrigger
+              value="reviews"
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-md px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all"
+            >
+              <Star className="w-4 h-4" />
+              Reviews
             </TabsTrigger>
           </TabsList>
 
@@ -1021,6 +1056,120 @@ const ProviderDashboard = () => {
                   saving={savingSchedule}
                 />
               )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="reviews">
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-800">My Reviews & Ratings</h2>
+
+              {/* Rating Overview */}
+              <Card className="bg-white/80 backdrop-blur-sm border border-gray-100 shadow-sm">
+                <CardContent className="p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-6">Rating Overview</h3>
+                  <div className="flex items-start gap-8">
+                    {/* Left side - Overall rating */}
+                    <div className="text-center">
+                      <p className="text-5xl font-bold text-teal-500 mb-1">{reviewStats.averageRating}</p>
+                      <div className="flex items-center justify-center gap-1 mb-2">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`w-5 h-5 ${i < Math.floor(reviewStats.averageRating) ? "text-amber-500 fill-amber-500" : "text-gray-300"}`}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-sm text-gray-500">Based on {reviewStats.totalReviews} review{reviewStats.totalReviews !== 1 ? 's' : ''}</p>
+                    </div>
+
+                    {/* Right side - Rating distribution bars */}
+                    <div className="flex-1 space-y-2">
+                      {[5, 4, 3, 2, 1].map((starCount) => {
+                        const count = myReviews.filter(r => r.rating === starCount).length;
+                        const total = myReviews.length || 1;
+                        const percentage = (count / total) * 100;
+                        return (
+                          <div key={starCount} className="flex items-center gap-3">
+                            <div className="flex items-center gap-1 w-8">
+                              <span className="text-sm text-gray-600">{starCount}</span>
+                              <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                            </div>
+                            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-amber-500 rounded-full transition-all"
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                            <span className="text-sm text-gray-500 w-8 text-right">{count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Reviews List */}
+              <Card className="bg-white/80 backdrop-blur-sm border border-gray-100 shadow-sm">
+                <CardContent className="p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-6">Customer Reviews</h3>
+                  {reviewsLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-4 border-teal-500 border-t-transparent"></div>
+                    </div>
+                  ) : myReviews.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Star className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                      <p className="text-gray-500 font-medium">No reviews yet</p>
+                      <p className="text-sm text-gray-400 mt-1">Reviews from your customers will appear here</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-0">
+                      {myReviews.map((review, index) => {
+                        const bgColors = ["bg-teal-500", "bg-blue-500", "bg-orange-500", "bg-teal-400", "bg-purple-500"];
+                        const timeAgo = (dateStr) => {
+                          const now = new Date();
+                          const date = new Date(dateStr);
+                          const diffMs = now - date;
+                          const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                          if (diffDays === 0) return "Today";
+                          if (diffDays === 1) return "Yesterday";
+                          if (diffDays < 7) return `${diffDays} days ago`;
+                          if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) > 1 ? 's' : ''} ago`;
+                          if (diffDays < 365) return `${Math.floor(diffDays / 30)} month${Math.floor(diffDays / 30) > 1 ? 's' : ''} ago`;
+                          return `${Math.floor(diffDays / 365)} year${Math.floor(diffDays / 365) > 1 ? 's' : ''} ago`;
+                        };
+                        return (
+                          <div key={review.id || index} className="py-5 border-b border-gray-100 last:border-0">
+                            <div className="flex items-start gap-4">
+                              <div className={`w-10 h-10 rounded-full ${bgColors[index % bgColors.length]} flex items-center justify-center text-white font-semibold flex-shrink-0`}>
+                                {review.customerName?.charAt(0)?.toUpperCase() || 'U'}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                  <p className="font-semibold text-gray-900">{review.customerName || 'Anonymous'}</p>
+                                  <p className="text-sm text-gray-400">{timeAgo(review.createdAt)}</p>
+                                </div>
+                                <div className="flex items-center gap-1 mb-2">
+                                  {[...Array(5)].map((_, i) => (
+                                    <Star
+                                      key={i}
+                                      className={`w-4 h-4 ${i < review.rating ? "text-amber-500 fill-amber-500" : "text-gray-300"}`}
+                                    />
+                                  ))}
+                                </div>
+                                {review.comment && (
+                                  <p className="text-gray-700 text-sm">{review.comment}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
         </Tabs>
