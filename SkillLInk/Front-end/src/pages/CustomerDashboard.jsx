@@ -1652,7 +1652,7 @@ const CustomerDashboard = () => {
                                       Booked
                                     </span>
                                   )}
-                                  {slot.status === 'lunch' && (
+                                  {(slot.status === 'lunch' || slot.status === 'break') && (
                                     <span className="block mt-1 text-xs text-teal-600 font-medium">
                                       Lunch Break
                                     </span>
@@ -1884,7 +1884,7 @@ const CustomerDashboard = () => {
             const response = await api.getProviderAvailability(providerId, dateStr);
             return response;
           }}
-          slotDuration={60}
+          slotDuration={30}
         />
       )}
 

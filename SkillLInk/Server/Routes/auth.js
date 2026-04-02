@@ -587,12 +587,18 @@ Router.post('/login', async (req, res) => {
                 };
             });
 
-            // Helper to format a Date as YYYY-MM-DD in local timezone
-            const formatLocalDate = (d) => {
-                const year = d.getFullYear();
-                const month = String(d.getMonth() + 1).padStart(2, '0');
-                const day = String(d.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
+            // Normalize DB date values into stable YYYY-MM-DD keys.
+            // Avoiding new Date("YYYY-MM-DD") prevents timezone date shifts.
+            const normalizeDateKey = (value) => {
+                if (!value) return null;
+                if (typeof value === 'string') return value.slice(0, 10);
+                if (value instanceof Date) {
+                    const year = value.getFullYear();
+                    const month = String(value.getMonth() + 1).padStart(2, '0');
+                    const day = String(value.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                }
+                return String(value).slice(0, 10);
             };
 
             // Generate time slots for a specific date if provided
@@ -618,11 +624,11 @@ Router.post('/login', async (req, res) => {
                     const endMinutes = parseTimeToMinutes(schedule.endTime);
                     const slotInterval = 30; // 30-minute slots
 
-                    // Get blocked times for this date - compare dates properly using local timezone
+                    // Get blocked times for this date.
                     const blockedTimes = blockedSlotsResult.rows
                         .filter(b => {
-                            const blockedDateStr = formatLocalDate(new Date(b.blocked_date));
-                            const requestedDateStr = date; // Already in YYYY-MM-DD format
+                            const blockedDateStr = normalizeDateKey(b.blocked_date);
+                            const requestedDateStr = date; // Already YYYY-MM-DD
                             console.log('Comparing blocked date:', blockedDateStr, 'with requested:', requestedDateStr);
                             return blockedDateStr === requestedDateStr;
                         })
@@ -636,7 +642,7 @@ Router.post('/login', async (req, res) => {
                     // Get booked times for this date
                     const bookedSlots = bookedSlotsResult.rows
                         .filter(b => {
-                            const bookedDateStr = formatLocalDate(new Date(b.preferred_date));
+                            const bookedDateStr = normalizeDateKey(b.preferred_date);
                             return bookedDateStr === date;
                         })
                         .map(b => parseTimeToMinutes(b.preferred_time?.slice(0, 5)));

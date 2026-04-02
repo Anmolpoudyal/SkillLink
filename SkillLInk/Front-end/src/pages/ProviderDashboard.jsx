@@ -89,6 +89,16 @@ const ProviderDashboard = () => {
     reason: "",
   });
 
+  const mapBlockedSlots = (slots = []) =>
+    slots.map((slot) => ({
+      id: slot.id,
+      date: slot.date, // keep YYYY-MM-DD from API for stable comparisons
+      time: `${slot.startTime || "00:00"} - ${slot.endTime || "23:59"}`,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      reason: slot.reason || "Personal",
+    }));
+
   // Provider Settings modal state
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsForm, setSettingsForm] = useState({
@@ -296,12 +306,7 @@ const ProviderDashboard = () => {
         }
         
         if (response.blockedSlots) {
-          setBlockedSlots(response.blockedSlots.map(slot => ({
-            id: slot.id,
-            date: new Date(slot.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-            time: `${slot.startTime || '00:00'} - ${slot.endTime || '23:59'}`,
-            reason: slot.reason || 'Personal'
-          })));
+          setBlockedSlots(mapBlockedSlots(response.blockedSlots));
         }
       } catch (error) {
         console.error("Error fetching availability:", error);
@@ -399,12 +404,7 @@ const ProviderDashboard = () => {
       // Refresh blocked slots
       const response = await api.getMyAvailability();
       if (response.blockedSlots) {
-        setBlockedSlots(response.blockedSlots.map(slot => ({
-          id: slot.id,
-          date: new Date(slot.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          time: `${slot.startTime || '00:00'} - ${slot.endTime || '23:59'}`,
-          reason: slot.reason || 'Personal'
-        })));
+        setBlockedSlots(mapBlockedSlots(response.blockedSlots));
       }
 
       setShowBlockModal(false);
@@ -1016,14 +1016,7 @@ const ProviderDashboard = () => {
                       // Refresh blocked slots
                       const response = await api.getMyAvailability();
                       if (response.blockedSlots) {
-                        setBlockedSlots(response.blockedSlots.map(slot => ({
-                          id: slot.id,
-                          date: new Date(slot.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                          time: `${slot.startTime || '00:00'} - ${slot.endTime || '23:59'}`,
-                          startTime: slot.startTime,
-                          endTime: slot.endTime,
-                          reason: slot.reason || 'Personal'
-                        })));
+                        setBlockedSlots(mapBlockedSlots(response.blockedSlots));
                       }
                       toast({
                         title: "Success",

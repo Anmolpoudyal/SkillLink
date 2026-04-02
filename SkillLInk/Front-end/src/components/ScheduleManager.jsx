@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -25,14 +25,40 @@ import { Button } from "./ui/button";
  * - Quick templates for common schedules
  */
 
+const format12HourTime = (hours24, minutes) => {
+  const hour12 = hours24 > 12 ? hours24 - 12 : hours24 === 0 ? 12 : hours24;
+  const ampm = hours24 >= 12 ? 'PM' : 'AM';
+  return `${String(hour12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+};
+
+const normalizeTimeLabel = (value) => {
+  if (!value) return '';
+  if (typeof value !== 'string') return value;
+
+  // Support values like "9:00 AM", "09:00 AM", or "09:00"
+  const twelveHourMatch = value.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (twelveHourMatch) {
+    let [, hh, mm, period] = twelveHourMatch;
+    const hours = Math.max(1, Math.min(12, parseInt(hh, 10)));
+    return `${String(hours).padStart(2, '0')}:${mm} ${period.toUpperCase()}`;
+  }
+
+  const twentyFourHourMatch = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (twentyFourHourMatch) {
+    const [, hh, mm] = twentyFourHourMatch;
+    const hours24 = Math.max(0, Math.min(23, parseInt(hh, 10)));
+    return format12HourTime(hours24, parseInt(mm, 10));
+  }
+
+  return value;
+};
+
 // Time options in 30-minute intervals
 const TIME_OPTIONS = [];
 for (let hour = 6; hour <= 22; hour++) {
   for (let min = 0; min < 60; min += 30) {
     const time24 = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
-    const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const time12 = `${hour12}:${String(min).padStart(2, '0')} ${ampm}`;
+    const time12 = format12HourTime(hour, min);
     TIME_OPTIONS.push({ value: time24, label: time12 });
   }
 }
@@ -89,8 +115,10 @@ const ScheduleManager = ({
       // Ensure breakStart/breakEnd fields exist on every item
       return initialSchedule.map(item => ({
         ...item,
-        breakStart: item.breakStart || '',
-        breakEnd: item.breakEnd || '',
+        startTime: normalizeTimeLabel(item.startTime || '09:00 AM'),
+        endTime: normalizeTimeLabel(item.endTime || '06:00 PM'),
+        breakStart: normalizeTimeLabel(item.breakStart || ''),
+        breakEnd: normalizeTimeLabel(item.breakEnd || ''),
       }));
     }
     return DAYS_OF_WEEK.map(day => ({
@@ -125,8 +153,10 @@ const ScheduleManager = ({
       // Ensure breakStart/breakEnd fields exist on every item
       setSchedule(initialSchedule.map(item => ({
         ...item,
-        breakStart: item.breakStart || '',
-        breakEnd: item.breakEnd || '',
+        startTime: normalizeTimeLabel(item.startTime || '09:00 AM'),
+        endTime: normalizeTimeLabel(item.endTime || '06:00 PM'),
+        breakStart: normalizeTimeLabel(item.breakStart || ''),
+        breakEnd: normalizeTimeLabel(item.breakEnd || ''),
       })));
     }
   }, [initialSchedule]);
@@ -223,12 +253,17 @@ const ScheduleManager = ({
       const dd = String(d.getDate()).padStart(2, '0');
       return `${y}-${m}-${dd}`;
     };
+    const normalizeDateKey = (value) => {
+      if (!value) return '';
+      if (typeof value === 'string') return value.slice(0, 10);
+      return fmtLocalDate(new Date(value));
+    };
 
     for (let day = 1; day <= lastDay.getDate(); day++) {
       const date = new Date(blockMonth.getFullYear(), blockMonth.getMonth(), day);
       const dateStr = fmtLocalDate(date);
       const isBlocked = blockedSlots.some(slot => {
-        const slotDate = fmtLocalDate(new Date(slot.date));
+        const slotDate = normalizeDateKey(slot.date);
         return slotDate === dateStr;
       });
       const isPast = date < today;
@@ -526,7 +561,24 @@ const ScheduleManager = ({
                     >
                       <div>
                         <p className="font-medium text-gray-900">
-                          {typeof slot.date === 'string' ? slot.date : new Date(slot.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                          {(() => {
+                            const dateKey = typeof slot.date === 'string' ? slot.date.slice(0, 10) : null;
+                            if (dateKey && /^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+                              const [y, m, d] = dateKey.split('-').map(Number);
+                              return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+                                weekday: 'short',
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              });
+                            }
+                            return new Date(slot.date).toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            });
+                          })()}
                         </p>
                         <p className="text-sm text-gray-500">
                           {slot.time || `${slot.startTime} - ${slot.endTime}`}
