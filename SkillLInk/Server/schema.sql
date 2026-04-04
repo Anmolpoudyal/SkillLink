@@ -136,6 +136,25 @@ CREATE TABLE reports (
   resolved_at TIMESTAMP
 );
 
+-- Booking chat messages (customer <-> provider)
+CREATE TABLE booking_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  message TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Direct messages (customer <-> provider without booking dependency)
+CREATE TABLE direct_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  receiver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  message TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  CHECK (sender_id <> receiver_id)
+);
+
 -- Indexes for better query performance
 CREATE INDEX idx_bookings_customer ON bookings(customer_id);
 CREATE INDEX idx_bookings_provider ON bookings(provider_id);
@@ -144,6 +163,9 @@ CREATE INDEX idx_reviews_provider ON reviews(provider_id);
 CREATE INDEX idx_reports_provider ON reports(provider_id);
 CREATE INDEX idx_provider_availability ON provider_availability(provider_id);
 CREATE INDEX idx_provider_blocked_slots ON provider_blocked_slots(provider_id, blocked_date);
+CREATE INDEX idx_booking_messages_booking ON booking_messages(booking_id, created_at);
+CREATE INDEX idx_direct_messages_sender_receiver ON direct_messages(sender_id, receiver_id, created_at);
+CREATE INDEX idx_direct_messages_receiver_sender ON direct_messages(receiver_id, sender_id, created_at);
 
 -- ============================================
 -- SAMPLE DATA

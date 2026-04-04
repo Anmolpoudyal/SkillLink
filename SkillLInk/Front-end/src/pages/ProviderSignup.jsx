@@ -18,9 +18,10 @@ import {
   SelectTrigger,
   SelectValue
 } from "../components/ui/select.jsx";
-import { Wrench, Upload, User, Mail, Phone, Lock, Briefcase, MapPin, DollarSign, Clock, FileText, ArrowLeft, CheckCircle, Sparkles, Shield, Eye, EyeOff, TrendingUp, Users, Wallet } from "lucide-react";
+import { Upload, User, Mail, Phone, Lock, Briefcase, MapPin, DollarSign, Clock, FileText, ArrowLeft, CheckCircle, Sparkles, Shield, Eye, EyeOff, TrendingUp, Users, Wallet } from "lucide-react";
 import { useToast } from "../hooks/useToast.js";
 import api from "../services/api.js";
+import BrandLogo from "../components/BrandLogo.jsx";
 
 const serviceCategories = [
   "Electrician",
@@ -158,6 +159,7 @@ const ProviderSignup = () => {
       });
 
       // Store user info
+      localStorage.setItem("userId", response.user.id);
       localStorage.setItem("userRole", "service_provider");
       localStorage.setItem("isLoggedIn", "true");
       localStorage.setItem("userEmail", response.user.email);
@@ -196,11 +198,8 @@ const ProviderSignup = () => {
       {/* Left Side - Benefits (Hidden on mobile) */}
       <div className={`hidden lg:flex lg:w-2/5 relative z-10 items-center justify-center p-12 transition-all duration-1000 ${mounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>
         <div className="max-w-md">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-accent to-orange-500 flex items-center justify-center shadow-xl animate-pulse-glow">
-              <Wrench className="h-7 w-7 text-white" />
-            </div>
-            <span className="text-3xl font-bold text-gradient">SkillLink</span>
+          <div className="mb-8">
+            <BrandLogo imageClassName="h-20 drop-shadow-md" />
           </div>
 
           <h1 className="text-4xl font-bold mb-4 leading-tight">
@@ -269,9 +268,7 @@ const ProviderSignup = () => {
             
             <CardHeader className="space-y-2 pt-8 pb-4 flex flex-col items-center">
               <div className="lg:hidden flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-accent to-orange-500 flex items-center justify-center shadow-lg">
-                  <Wrench className="h-6 w-6 text-white" />
-                </div>
+                <BrandLogo imageClassName="h-14 drop-shadow-sm" />
               </div>
               <CardTitle className="text-2xl font-bold">Apply as Service Provider</CardTitle>
               <CardDescription className="text-base">Complete your application for admin review</CardDescription>

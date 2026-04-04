@@ -2,6 +2,7 @@ import { Button } from "./ui/button";
 import { Menu, X, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom"; 
+import BrandLogo from "./BrandLogo";
 
 const HomeNav = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -26,13 +27,8 @@ const HomeNav = () => {
         <div className="flex items-center justify-between h-20">
           
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary to-blue-500 flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-xl group-hover:shadow-primary/30 transition-all duration-300 group-hover:scale-105">
-              <span className="text-white font-bold text-xl">S</span>
-            </div>
-            <span className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent group-hover:from-primary group-hover:to-blue-500 transition-all duration-300">
-              SkillLink
-            </span>
+          <Link to="/" className="flex items-center group">
+            <BrandLogo imageClassName="h-12 md:h-14 drop-shadow-md group-hover:scale-[1.02] transition-transform duration-300" />
           </Link>
           
           {/* Desktop Navigation */}

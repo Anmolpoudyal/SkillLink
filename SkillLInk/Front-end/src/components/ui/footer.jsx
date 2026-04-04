@@ -1,6 +1,7 @@
-import { Facebook, Instagram, Twitter, Mail, Phone, MapPin, Heart, ArrowRight, Send } from "lucide-react";
+﻿import { Facebook, Instagram, Twitter, Mail, Phone, MapPin, ArrowRight, Send } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState } from "react";
+import BrandLogo from "../BrandLogo.jsx";
 
 const Footer = () => {
   const [email, setEmail] = useState("");
@@ -58,11 +59,8 @@ const Footer = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12">
             {/* Brand */}
             <div className="space-y-6">
-              <Link to="/" className="flex items-center gap-3 group">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-blue-500 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
-                  <span className="text-white font-bold text-xl">S</span>
-                </div>
-                <span className="text-2xl font-bold text-white">SkillLink</span>
+              <Link to="/" className="flex items-center group">
+                <BrandLogo imageClassName="h-14 drop-shadow-md group-hover:scale-[1.02] transition-transform" />
               </Link>
               <p className="text-slate-400 leading-relaxed">
                 Connecting Nepal's skilled workforce with customers who need quality services.
@@ -160,9 +158,7 @@ const Footer = () => {
         {/* Bottom Bar */}
         <div className="py-6 border-t border-white/10">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-slate-500 flex items-center gap-1">
-              © 2024 SkillLink. Made with <Heart className="w-4 h-4 text-red-500 fill-red-500" /> in Nepal
-            </p>
+            <p className="text-sm text-slate-500">© 2024 SkillLink. All rights reserved.</p>
             <div className="flex flex-wrap justify-center gap-6">
               {[
                 { label: "Privacy Policy", href: "#" },
@@ -186,3 +182,5 @@ const Footer = () => {
 };
 
 export default Footer;
+
+

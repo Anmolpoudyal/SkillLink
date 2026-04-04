@@ -5,9 +5,10 @@ import { Input } from "../components/ui/input.jsx";
 import { Label } from "../components/ui/label.jsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/Card.jsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { Wrench, User, Briefcase, Eye, EyeOff, ArrowLeft, Sparkles, Shield } from "lucide-react";
+import { User, Briefcase, Eye, EyeOff, ArrowLeft, Sparkles, Shield } from "lucide-react";
 import { useToast } from "../hooks/useToast.js";
 import api from "../services/api.js";
+import BrandLogo from "../components/BrandLogo.jsx";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -106,10 +107,8 @@ const Login = () => {
           
           <CardHeader className="space-y-4 pt-8 pb-4 flex flex-col items-center relative">
             {/* Logo */}
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-blue-500 flex items-center justify-center shadow-xl animate-pulse-glow">
-                <Wrench className="h-7 w-7 text-white" />
-              </div>
+            <div className="mb-2">
+              <BrandLogo imageClassName="h-20 drop-shadow-md mx-auto" />
             </div>
             <div className="text-center">
               <CardTitle className="text-3xl font-bold text-gradient mb-1">Welcome Back</CardTitle>

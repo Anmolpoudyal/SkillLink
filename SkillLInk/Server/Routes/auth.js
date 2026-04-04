@@ -1183,9 +1183,19 @@ Router.post('/login', async (req, res) => {
 
             console.log('Update booking status:', { bookingId: id, providerId: userId, status });
 
+            const allowedStatuses = ['accepted', 'rejected', 'in_progress', 'completed', 'cancelled'];
+            if (!allowedStatuses.includes(status)) {
+                return res.status(400).json({ message: 'Invalid status update request' });
+            }
+
             // Verify the booking belongs to this provider
             const bookingCheck = await pool.query(
-                'SELECT * FROM bookings WHERE id = $1 AND provider_id = $2',
+                `SELECT 
+                    b.*,
+                    p.status as payment_status
+                 FROM bookings b
+                 LEFT JOIN payments p ON b.id = p.booking_id
+                 WHERE b.id = $1 AND b.provider_id = $2`,
                 [id, userId]
             );
 
@@ -1199,6 +1209,22 @@ Router.post('/login', async (req, res) => {
             }
 
             const currentBooking = bookingCheck.rows[0];
+
+            if (['completed', 'cancelled', 'rejected'].includes(currentBooking.status)) {
+                return res.status(400).json({
+                    message: `Cannot update booking that is already ${currentBooking.status}`,
+                });
+            }
+
+            if (status === 'cancelled') {
+                const paidStatuses = ['paid', 'completed', 'finalized'];
+                if (paidStatuses.includes(String(currentBooking.payment_status || '').toLowerCase())) {
+                    return res.status(400).json({
+                        message: 'Cannot cancel booking after payment is completed',
+                    });
+                }
+            }
+
             let updateQuery = 'UPDATE bookings SET status = $1, updated_at = NOW()';
             const params = [status];
             let paramIndex = 2;
@@ -1224,6 +1250,10 @@ Router.post('/login', async (req, res) => {
                 updateQuery += `, started_at = NOW()`;
             } else if (status === 'completed') {
                 updateQuery += `, completed_at = NOW()`;
+            } else if (status === 'cancelled') {
+                updateQuery += `, rejection_reason = $${paramIndex}`;
+                params.push(rejectionReason || 'Cancelled by provider before payment');
+                paramIndex++;
             }
 
             if (providerNotes) {
@@ -1260,6 +1290,11 @@ Router.post('/login', async (req, res) => {
                     type: 'booking_completed',
                     title: 'Service Completed',
                     message: `${providerName} has completed your service. Please review and make payment.`
+                },
+                cancelled: {
+                    type: 'booking_cancelled',
+                    title: 'Booking Cancelled',
+                    message: `${providerName} has cancelled your booking before payment.`
                 }
             };
 

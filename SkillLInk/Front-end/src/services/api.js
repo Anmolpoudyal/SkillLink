@@ -458,6 +458,41 @@ const api = {
   },
 
   // ============================================
+  // CHAT API CALLS
+  // ============================================
+
+  chat: {
+    // Get chat messages for a booking (customer/provider only)
+    getBookingMessages: async (bookingId, limit = 100) => {
+      const params = new URLSearchParams({ limit: String(limit) });
+      const response = await fetch(`${API_BASE_URL}/api/chat/bookings/${bookingId}/messages?${params}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      return handleResponse(response);
+    },
+
+    // Get direct chat conversations for current user
+    getDirectConversations: async () => {
+      const response = await fetch(`${API_BASE_URL}/api/chat/direct/conversations`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      return handleResponse(response);
+    },
+
+    // Get direct messages with a peer user
+    getDirectMessages: async (peerId, limit = 100) => {
+      const params = new URLSearchParams({ limit: String(limit) });
+      const response = await fetch(`${API_BASE_URL}/api/chat/direct/${peerId}/messages?${params}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      return handleResponse(response);
+    },
+  },
+
+  // ============================================
   // KHALTI PAYMENT API CALLS
   // ============================================
 

@@ -8,6 +8,9 @@ import PaymentModal from "../components/PaymentModal.jsx";
 import LocationPicker, { calculateDistance, formatDistance } from "../components/LocationPicker.jsx";
 import TimeSlotPicker from "../components/TimeSlotPicker.jsx";
 import NotificationBell from "../components/NotificationBell.jsx";
+import BrandLogo from "../components/BrandLogo.jsx";
+import BookingChatModal from "../components/BookingChatModal.jsx";
+import DirectChatModal from "../components/DirectChatModal.jsx";
 import {
   Search,
   MapPin,
@@ -34,6 +37,7 @@ import {
   Camera,
   CreditCard,
   User,
+  MessageCircle,
 } from "lucide-react";
 
 const CustomerDashboard = () => {
@@ -94,6 +98,10 @@ const CustomerDashboard = () => {
   // Payment modal state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentBooking, setPaymentBooking] = useState(null);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [chatBooking, setChatBooking] = useState(null);
+  const [showDirectChatModal, setShowDirectChatModal] = useState(false);
+  const [directChatPeer, setDirectChatPeer] = useState(null);
 
   // Fetch customer bookings
   const fetchMyBookings = async () => {
@@ -177,6 +185,21 @@ const CustomerDashboard = () => {
       description: error.message || "Failed to process payment. Please try again.",
       variant: "destructive",
     });
+  };
+
+  const handleOpenChat = (booking) => {
+    setChatBooking(booking);
+    setShowChatModal(true);
+  };
+
+  const handleOpenDirectChat = (provider) => {
+    if (!provider?.id) return;
+    setDirectChatPeer({
+      id: provider.id,
+      name: provider.name,
+      role: "service_provider",
+    });
+    setShowDirectChatModal(true);
   };
 
   // Rating modal state
@@ -772,6 +795,15 @@ const CustomerDashboard = () => {
             >
               Book Now
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleOpenDirectChat(provider)}
+              className="border-teal-200 text-teal-700 hover:bg-teal-50"
+            >
+              <MessageCircle className="w-4 h-4 mr-1" />
+              Chat Now
+            </Button>
           </div>
         </div>
       </CardContent>
@@ -790,11 +822,8 @@ const CustomerDashboard = () => {
       {/* Navbar */}
       <nav className="relative bg-white/80 backdrop-blur-md border-b border-gray-200/50 px-6 py-4 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-blue-500 rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-lg">⚡</span>
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">SkillLink</span>
+          <div className="flex items-center">
+            <BrandLogo imageClassName="h-10 md:h-11 drop-shadow-sm" />
           </div>
           <div className="flex items-center gap-6">
             <button 
@@ -1062,6 +1091,17 @@ const CustomerDashboard = () => {
                       </div>
                     </div>
 
+                    <div className="mt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => handleOpenChat(booking)}
+                        className="border-teal-200 text-teal-700 hover:bg-teal-50"
+                      >
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        Chat with {booking.provider.name}
+                      </Button>
+                    </div>
+
                     {/* Verification Code for Active Bookings */}
                     {booking.status === "active" && booking.verificationCode && (
                       <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
@@ -1324,6 +1364,14 @@ const CustomerDashboard = () => {
                       className="bg-teal-500 hover:bg-teal-600 text-white"
                     >
                       Book Now
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleOpenDirectChat(selectedProvider)}
+                      className="border-teal-200 text-teal-700 hover:bg-teal-50"
+                    >
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                      Chat Now
                     </Button>
                   </div>
                 </div>
@@ -2147,6 +2195,25 @@ const CustomerDashboard = () => {
         booking={paymentBooking}
         onPaymentSuccess={handlePaymentSuccess}
         onPaymentError={handlePaymentError}
+      />
+
+      <BookingChatModal
+        isOpen={showChatModal}
+        onClose={() => {
+          setShowChatModal(false);
+          setChatBooking(null);
+        }}
+        booking={chatBooking}
+        currentUserRole="customer"
+      />
+
+      <DirectChatModal
+        isOpen={showDirectChatModal}
+        onClose={() => {
+          setShowDirectChatModal(false);
+          setDirectChatPeer(null);
+        }}
+        peerUser={directChatPeer}
       />
     </div>
   );

@@ -7,6 +7,9 @@ import { useToast } from "../hooks/useToast.js";
 import api from "../services/api.js";
 import ScheduleManager from "../components/ScheduleManager.jsx";
 import NotificationBell from "../components/NotificationBell.jsx";
+import BrandLogo from "../components/BrandLogo.jsx";
+import BookingChatModal from "../components/BookingChatModal.jsx";
+import DirectChatModal from "../components/DirectChatModal.jsx";
 import {
   Clock,
   PlayCircle,
@@ -30,6 +33,7 @@ import {
   Mail,
   User,
   Star,
+  MessageCircle,
 } from "lucide-react";
 
 const ProviderDashboard = () => {
@@ -49,6 +53,13 @@ const ProviderDashboard = () => {
   const [activeBookingTab, setActiveBookingTab] = useState("pending");
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [chatBooking, setChatBooking] = useState(null);
+  const [showDirectInbox, setShowDirectInbox] = useState(false);
+  const [directConversations, setDirectConversations] = useState([]);
+  const [directLoading, setDirectLoading] = useState(false);
+  const [showDirectChatModal, setShowDirectChatModal] = useState(false);
+  const [directChatPeer, setDirectChatPeer] = useState(null);
   const [otpValues, setOtpValues] = useState(["", "", "", "", "", ""]);
   const otpInputRefs = useRef([]);
 
@@ -556,6 +567,38 @@ const ProviderDashboard = () => {
     setOtpValues(["", "", "", "", "", ""]);
   };
 
+  const handleOpenChat = (request) => {
+    setChatBooking(request);
+    setShowChatModal(true);
+  };
+
+  const handleOpenDirectInbox = async () => {
+    try {
+      setDirectLoading(true);
+      const response = await api.chat.getDirectConversations();
+      setDirectConversations(response.conversations || []);
+      setShowDirectInbox(true);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load direct conversations",
+        variant: "destructive",
+      });
+    } finally {
+      setDirectLoading(false);
+    }
+  };
+
+  const openDirectChatWithPeer = (conversation) => {
+    setDirectChatPeer({
+      id: conversation.peerId,
+      name: conversation.peerName,
+      role: conversation.peerRole,
+    });
+    setShowDirectInbox(false);
+    setShowDirectChatModal(true);
+  };
+
   // Accept booking modal state
   const [showAcceptModal, setShowAcceptModal] = useState(false);
   const [acceptingRequest, setAcceptingRequest] = useState(null);
@@ -627,6 +670,35 @@ const ProviderDashboard = () => {
       toast({
         title: "Error",
         description: error.message || "Failed to reject booking",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancelBeforePayment = async (request) => {
+    const confirmed = window.confirm(
+      "Cancel this booking before payment? This cannot be undone."
+    );
+    if (!confirmed) return;
+
+    try {
+      await api.updateBookingStatus(request.id, {
+        status: "cancelled",
+        rejectionReason: "Cancelled by provider before payment",
+      });
+
+      const response = await api.getProviderBookings();
+      setBookings(response.bookings || []);
+
+      toast({
+        title: "Booking Cancelled",
+        description: "The booking has been cancelled before payment.",
+      });
+    } catch (error) {
+      console.error("Error cancelling booking:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to cancel booking",
         variant: "destructive",
       });
     }
@@ -737,6 +809,18 @@ const ProviderDashboard = () => {
           )}
 
           {/* Action Buttons - for pending */}
+          <div className="mb-4">
+            <Button
+              variant="outline"
+              onClick={() => handleOpenChat(request)}
+              className="w-full border-teal-200 text-teal-700 hover:bg-teal-50"
+            >
+              <MessageCircle className="w-4 h-4 mr-2" />
+              Chat with {request.customer?.name || "Customer"}
+            </Button>
+          </div>
+
+          {/* Action Buttons - for pending */}
           {showActions && !isInProgress && !isCompleted && (
             <div className="grid grid-cols-2 gap-4">
               <Button
@@ -760,6 +844,17 @@ const ProviderDashboard = () => {
           {/* Complete Work Button - for in progress */}
           {isInProgress && (
             <>
+              {(request.paymentStatus !== 'completed' && request.paymentStatus !== 'paid') && (
+                <Button
+                  onClick={() => handleCancelBeforePayment(request)}
+                  variant="outline"
+                  className="w-full mb-3 border-red-200 text-red-600 hover:bg-red-50"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel Booking (Before Payment)
+                </Button>
+              )}
+
               {/* Show payment status */}
               {(request.paymentStatus === 'completed' || request.paymentStatus === 'paid') ? (
                 <Button
@@ -813,13 +908,17 @@ const ProviderDashboard = () => {
       {/* Navbar */}
       <nav className="relative bg-white/80 backdrop-blur-md border-b border-gray-200/50 px-6 py-4 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-blue-500 rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-lg">⚡</span>
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">SkillLink</span>
+          <div className="flex items-center">
+            <BrandLogo imageClassName="h-10 md:h-11 drop-shadow-sm" />
           </div>
           <div className="flex items-center gap-6">
+            <button 
+              onClick={handleOpenDirectInbox}
+              className="flex items-center gap-2 text-gray-600 hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-primary/5"
+            >
+              <MessageCircle className="w-5 h-5" />
+              <span className="font-medium">Direct Chats</span>
+            </button>
             <button 
               onClick={() => setShowEditProfileModal(true)}
               className="flex items-center gap-2 text-gray-600 hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-primary/5"
@@ -1715,6 +1814,67 @@ const ProviderDashboard = () => {
           </div>
         </div>
       )}
+
+      <BookingChatModal
+        isOpen={showChatModal}
+        onClose={() => {
+          setShowChatModal(false);
+          setChatBooking(null);
+        }}
+        booking={chatBooking}
+        currentUserRole="service_provider"
+      />
+
+      {showDirectInbox && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[75] p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900">Direct Conversations</h3>
+              <button
+                onClick={() => setShowDirectInbox(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4">
+              {directLoading ? (
+                <p className="text-sm text-gray-500">Loading conversations...</p>
+              ) : directConversations.length === 0 ? (
+                <p className="text-sm text-gray-500">No direct conversations yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {directConversations.map((conversation) => (
+                    <button
+                      key={conversation.peerId}
+                      onClick={() => openDirectChatWithPeer(conversation)}
+                      className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      <p className="font-medium text-gray-900">{conversation.peerName}</p>
+                      <p className="text-xs text-gray-500 capitalize mb-1">
+                        {conversation.peerRole?.replace("_", " ")}
+                      </p>
+                      <p className="text-sm text-gray-600 truncate">
+                        {conversation.lastMessage}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <DirectChatModal
+        isOpen={showDirectChatModal}
+        onClose={() => {
+          setShowDirectChatModal(false);
+          setDirectChatPeer(null);
+        }}
+        peerUser={directChatPeer}
+      />
     </div>
   );
 };

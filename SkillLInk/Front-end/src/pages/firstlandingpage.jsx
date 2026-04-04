@@ -3,6 +3,7 @@ import { FaUserTie, FaTools, FaStar, FaShieldAlt, FaCheckCircle } from "react-ic
 import { Link } from "react-router-dom";
 import { ArrowRight, Sparkles } from "lucide-react";
 import Footer from "../components/ui/footer.jsx";
+import BrandLogo from "../components/BrandLogo.jsx";
 
 export default function LandingPage() {
   const [mounted, setMounted] = useState(false);
@@ -26,11 +27,8 @@ export default function LandingPage() {
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center p-8 min-h-screen">
         {/* Logo */}
-        <div className={`flex items-center gap-3 mb-4 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg animate-pulse-glow">
-            <span className="text-white font-bold text-2xl">S</span>
-          </div>
-          <span className="text-3xl font-bold text-gradient">SkillLink</span>
+        <div className={`mb-4 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+          <BrandLogo imageClassName="h-24 drop-shadow-md" />
         </div>
 
         {/* Hero Text */}
