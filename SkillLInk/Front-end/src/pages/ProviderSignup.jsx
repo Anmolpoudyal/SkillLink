@@ -155,7 +155,7 @@ const ProviderSignup = () => {
 
       toast({
         title: "Application Submitted",
-        description: "Your provider account has been created successfully!",
+        description: `Registered as ${response.user.full_name} (Provider)`,
       });
 
       // Store user info

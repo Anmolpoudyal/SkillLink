@@ -61,6 +61,7 @@ const ProviderDashboard = () => {
   const [showDirectChatModal, setShowDirectChatModal] = useState(false);
   const [directChatPeer, setDirectChatPeer] = useState(null);
   const [otpValues, setOtpValues] = useState(["", "", "", "", "", ""]);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const otpInputRefs = useRef([]);
 
   // Bookings state - fetched from API
@@ -494,6 +495,8 @@ const ProviderDashboard = () => {
   };
 
   const handleVerifyComplete = async () => {
+    if (isVerifyingOtp) return;
+
     const otp = otpValues.join("");
     
     if (otp.length !== 6) {
@@ -506,15 +509,12 @@ const ProviderDashboard = () => {
     }
     
     try {
+      setIsVerifyingOtp(true);
+
       // First try to verify payment completion OTP
       const paymentResult = await api.payments.verifyCompletionOtp(selectedRequest.id, otp);
       
       if (paymentResult.success) {
-        // Payment OTP verified, now complete the booking
-        await api.updateBookingStatus(selectedRequest.id, {
-          status: 'completed'
-        });
-        
         // Refresh bookings
         const response = await api.getProviderBookings();
         setBookings(response.bookings || []);
@@ -532,9 +532,12 @@ const ProviderDashboard = () => {
           setPendingEarnings(parseFloat(profileResponse.user.pending_earnings) || 0);
         }
         
+        const alreadyFinalized = Boolean(paymentResult.alreadyFinalized);
         toast({
-          title: "Job Completed!",
-          description: `Work completed! You earned NPR ${paymentResult.earnings?.toLocaleString() || '0'}`,
+          title: alreadyFinalized ? "Already Finalized" : "Job Completed!",
+          description: alreadyFinalized
+            ? "This booking was already finalized. Status has been refreshed."
+            : `Work completed! You earned NPR ${paymentResult.earnings?.toLocaleString() || '0'}`,
         });
         
         setShowOTPModal(false);
@@ -558,10 +561,13 @@ const ProviderDashboard = () => {
           variant: "destructive",
         });
       }
+    } finally {
+      setIsVerifyingOtp(false);
     }
   };
 
   const handleCloseModal = () => {
+    if (isVerifyingOtp) return;
     setShowOTPModal(false);
     setSelectedRequest(null);
     setOtpValues(["", "", "", "", "", ""]);
@@ -1281,6 +1287,7 @@ const ProviderDashboard = () => {
                 <button
                   onClick={handleCloseModal}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
+                  disabled={isVerifyingOtp}
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1343,15 +1350,16 @@ const ProviderDashboard = () => {
                 onClick={handleCloseModal}
                 variant="outline"
                 className="flex-1 py-3 border-gray-300 text-gray-600"
+                disabled={isVerifyingOtp}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleVerifyComplete}
                 className="flex-1 py-3 bg-teal-500 hover:bg-teal-600 text-white"
-                disabled={otpValues.some((v) => !v)}
+                disabled={otpValues.some((v) => !v) || isVerifyingOtp}
               >
-                Verify & Complete
+                {isVerifyingOtp ? "Verifying..." : "Verify & Complete"}
               </Button>
             </div>
           </div>

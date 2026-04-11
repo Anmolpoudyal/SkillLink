@@ -86,7 +86,7 @@ const CustomerSignup = () => {
 
       toast({
         title: "Account Created",
-        description: "Welcome to SkillLink!",
+        description: `Registered as ${response.user.full_name} (Customer)`,
       });
 
       // Navigate to customer dashboard or home

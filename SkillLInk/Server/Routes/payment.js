@@ -157,6 +157,20 @@ Router.post('/verify', protect, async (req, res) => {
 
         const payment = paymentResult.rows[0];
 
+        // Idempotent behavior for repeated verify calls from refresh/retry.
+        if (payment.status === 'completed') {
+            return res.json({
+                success: true,
+                message: 'Payment already verified',
+                status: 'completed',
+                transactionId: payment.khalti_transaction_id,
+                amount: Number(payment.amount),
+                paidAt: payment.paid_at,
+                completionOtp: payment.completion_otp,
+                bookingId: payment.booking_id
+            });
+        }
+
         // Verify payment with Khalti
         const verifyResponse = await khaltiRequest('/epayment/lookup/', { pidx });
 
@@ -259,6 +273,18 @@ Router.get('/verify', protect, async (req, res) => {
 
         const payment = paymentResult.rows[0];
 
+        // Idempotent behavior for repeated verify page loads.
+        if (payment.status === 'completed') {
+            return res.json({
+                success: true,
+                status: 'completed',
+                bookingId: payment.booking_id,
+                amount: Number(payment.amount),
+                transactionId: payment.khalti_transaction_id,
+                completionOtp: payment.completion_otp || null
+            });
+        }
+
         // Verify payment with Khalti
         const verifyResponse = await khaltiRequest('/epayment/lookup/', { pidx });
 
@@ -355,7 +381,9 @@ Router.post('/verify-completion-otp', protect, async (req, res) => {
             `SELECT p.*, b.status as booking_status 
              FROM payments p
              JOIN bookings b ON p.booking_id = b.id
-             WHERE p.booking_id = $1 AND p.provider_id = $2 AND p.status = 'completed'`,
+             WHERE p.booking_id = $1 AND p.provider_id = $2 AND p.status = 'completed'
+             ORDER BY p.created_at DESC
+             LIMIT 1`,
             [bookingId, providerId]
         );
 
@@ -365,9 +393,15 @@ Router.post('/verify-completion-otp', protect, async (req, res) => {
 
         const payment = paymentResult.rows[0];
 
-        // Check if already finalized
+        // Idempotent behavior: if already verified, return success instead of error.
         if (payment.otp_verified) {
-            return res.status(400).json({ message: 'This booking has already been finalized' });
+            return res.json({
+                success: true,
+                alreadyFinalized: true,
+                message: 'This booking has already been finalized',
+                amount: payment.amount,
+                earnings: 0
+            });
         }
 
         // Verify the OTP
@@ -377,14 +411,26 @@ Router.post('/verify-completion-otp', protect, async (req, res) => {
 
         // OTP is correct - finalize the transaction
         // Update payment as OTP verified
-        await pool.query(
+        const paymentUpdateResult = await pool.query(
             `UPDATE payments 
              SET otp_verified = true,
                  otp_verified_at = NOW(),
                  updated_at = NOW()
-             WHERE id = $1`,
+             WHERE id = $1 AND otp_verified = false
+             RETURNING id`,
             [payment.id]
         );
+
+        // A parallel request may have finalized this just before this update.
+        if (paymentUpdateResult.rows.length === 0) {
+            return res.json({
+                success: true,
+                alreadyFinalized: true,
+                message: 'This booking has already been finalized',
+                amount: payment.amount,
+                earnings: 0
+            });
+        }
 
         // Update booking status to completed
         await pool.query(
